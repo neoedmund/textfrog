@@ -1,5 +1,5 @@
 # Textfrog
-textfrog the lang
+Textfrog the lang
 ![icon](textfrog.webp)
 
 Textfrog is a lovely? succinct? powerful? addictive? (domain?) (script?) (interpreted?) (battery included?) (implicitly typed) computer language.
@@ -17,7 +17,7 @@ It is in it's young age, but already seems
 
 It may be released public when mature enough, for being thankful to God to lead me to it.
 
-## general idea about languages
+## General idea about languages
 
 * there is no pattern, no rules, everything is possible. (glance at language making tools)
 * you shall write every line of code happily, not painly. (glance at rust lang)
