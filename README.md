@@ -18,9 +18,9 @@ It is in it's young age, but already seems
 
 It may be released public when mature enough, for being thankful to God to lead me to it.
 
-## general idea about language
+## general idea about languages
 
-* there is no pattern, no rules, everything is possible. (glance at lanuage making tools)
+* there is no pattern, no rules, everything is possible. (glance at language making tools)
 * you shall write every line of code happily, not painly. (glance at rust lang)
-* If you not like the grammar, however powerful a lanuage is, you will not use it.
-* a human language is useless if you have no other people to speak with, but it's okay even you are the only one use it for computer language, because it talks to computer.
+* If you not like the grammar, however powerful a lanuage is, you will not use it. (so go straight to samples when you see a new language)
+* a human language is useless if you have no other people to speak with, but it's okay even you are the only one use a computer language, because it talks to computer.
