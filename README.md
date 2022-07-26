@@ -1,5 +1,7 @@
 # Textfrog
+
 Textfrog the lang
+
 ![icon](textfrog.webp)
 
 Textfrog is a lovely? succinct? powerful? addictive? (domain?) (script?) (interpreted?) (battery included?) (implicitly typed) computer language.
