@@ -54,7 +54,7 @@ you don't need do write ";" and most "," and change line is regard as space.
 		-> {}
 	}
   ```
-  "yeild" can be used
+  "yield" can be used
   
 	see samples 
   
