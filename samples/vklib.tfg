@@ -1,0 +1,1324 @@
+#!/usr/bin/env textfrog
+appt0 = currentMs ( )
+searchPath ( '/home/neoe/oss/lab/lab0/lang/textfrog/samples' )
+searchPath ( '/home/neoe/oss/lab/lab0/lang/textfrog/samples/bar' )
+include ( 'lib.tfg' )
+include ( "util.tfg" )
+libVulkan ( )
+libSDL2 ( )
+libmyvk3 ( )
+libC ( )
+
+G . dontGC = [ ] . copy ( )
+maxTexCnt = 200
+timeout = 9000000000L
+imageIndex = 0
+vk_ImageIndex = 0
+swapchainPs = 0
+beginInfo = struct ( VkCommandBufferBeginInfo )
+beginInfo . sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+beginInfo . flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT
+clearColor = nativeFloatArray ( 8 )
+clearColor [ 3 ] = 1.0f -- color {0.0f, 0.0f, 0.0f, 1.0f}
+clearColor [ 4 ] = 1.0f -- depthStencil {1.0f, 0}
+offset0 = nativePointerArray ( 1 )
+imageIndex1 = nativeIntArray ( 1 )
+
+G . frameNo = 0
+lastFrameNo = 0
+lastMs = 0
+depthFormat = VK_FORMAT_D32_SFLOAT //VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT
+//
+G . pps = { } . copy ( ) -- pipeline setting
+setPps ( )
+
+pipelineNames = [ img1 ]
+
+-- [ s3o imguifont objload img1 3l23Rh baseplane triangle simple simple2 simple3d ]
+for ( pipelineNames name ) {
+	inline ( format ( 'pipelines/%s.tfg' name ) )
+}
+inline ( 'descSets.tfg' )
+function getPps ( name ) {
+	if ( _ = G . pps [ name ] ) != null then return _ end
+	return G . pps [ name ] = { } . copy ( )
+}
+function setPps ( ) {
+	_ = getPps ( 'img1' )
+	_ . cullMode = 0
+	_ . useDescSet = [ '0_1' '1_0n1' ]
+}
+runnable function main ( ) {
+	-- mkVkInstance ( )
+	-- mkVkPhysicalDevice ( )
+	-- mkVkDevice ( )
+	-- mkSwapchain ( )
+	-- mkCommandPool ( )
+	-- mkDescriptorPool ( )
+	-- mkSyncer ( )
+	-- initCommandBuffers ( )
+	initCommandBuffers ( ) // commandbuffers
+	-- initImageCnt()
+	-- mkRenderPass ( ) // renderpass
+	-- mkImageView ( )
+	-- G . swapchain=null
+	-- mkImageView ( )
+	createFrameBuffers ( ) // framebuffers
+	myimgui_init ( G . sdlWindow mkVkInstance ( ) mkVkPhysicalDevice ( ) mkVkDevice ( )
+		G . queueFamilyIndexGfx G . queuesGfx mkDescriptorPool ( ) initImageCnt ( ) mkRenderPass ( ) )
+	myimgui_uploadFont ( mkVkDevice ( ) G . queuesGfx G . commandBuffers [ 0 ] )
+
+	initPipelines ( )
+	mkSyncer ( )
+	mkSubmitInfos ( )
+	s3d_init ( 60.0f )
+	mainloop ( )
+}
+
+function testWriteDesc ( tag ) { -- return true == skip
+	if G [ 'descWrite_' + tag ] != null then return true end
+	G [ 'descWrite_' + tag ] = 1
+	return false
+}
+function testUpdateDesc ( tag ) { -- return true == skip
+	if G [ 'descUpdate_' + tag ] == G . frameNo then return true end
+	G [ 'descUpdate_' + tag ] = G . frameNo
+	return false
+}
+
+function initDescSet ( name ) {
+	pps = G . pps [ name ]
+	if pps == null then return 0 end
+	useDescSet = pps . useDescSet
+	if useDescSet == null then return 0 end
+	for ( useDescSet desc ) {
+		if testWriteDesc ( name + desc ) then continue end
+		func = 'initDescSet' + desc
+		$func ( name )
+		log ( '[d]initDescSet %s (%s)' desc name )
+	}
+}
+function updateDescSet ( name descSetLayout cb ii pipelineLayout ) {
+	pps = G . pps [ name ]
+	if pps == null then return 0 end
+	useDescSet = pps . useDescSet
+	if useDescSet == null then return 0 end
+	for ( useDescSet desc ) {
+		if testUpdateDesc ( name + desc ) then continue end
+		func = 'updateDescSet' + desc
+		$func ( name descSetLayout cb ii pipelineLayout )
+		--		log ( '[d]updateDescSet %s (%s)' desc name )
+	}
+}
+function loadImages ( texGroup dir ) {
+	info = prepareImagesInDir ( dir )
+	// '/home/neoe/oss/github/Overv/VulkanTutorial/resources/'
+	// '/home/neoe/Downloads/【爆机少女喵小吉】《莱莎的炼金工房2》 - 列表 - 紳士漫畫-專註分享漢化本子 邪惡漫畫_files/'
+	// '/home/neoe/Downloads/[蠢沫沫] 雷姆 - 列表 - 紳士漫畫-專註分享漢化本子 邪惡漫畫_files/' 
+	// '/home/neoe/Downloads/【爆机少女喵小吉】更衣人偶墜入愛河 - 列表 - 紳士漫畫-專註分享漢化本子 邪惡漫畫_files/' 
+	size = info [ 0 ]
+	files = info [ 1 ]
+	log ( "files %,d total size %,d bytes" files . size ( ) size )
+	stagingBufRet = uploadBuffer ( size 0 VK_BUFFER_USAGE_TRANSFER_SRC_BIT )
+	device = mkVkDevice ( )
+	dataP = nativePointerArray ( 1 )
+	memory = stagingBufRet [ 1 ]
+	checkResult ( vkMapMemory ( device memory 0 size 0 dataP ) pos ( ) )
+	outfileoffsize = newMap ( )
+	timeit ( 'decodeWebp' decodeWebp ( files dataP [ 0 ] size outfileoffsize ) )
+	vkUnmapMemory ( device memory )
+	buf = stagingBufRet [ 0 ] [ 0 ]
+	timeit ( 'copyImages' copyImages ( outfileoffsize buf ) )
+	log ( 'totaldiff=%,d waste %.1f%%' totaldiff 100.0f * totaldiff / totalsize )
+	G [ 'tex_' + texGroup ] = outfileoffsize // fn:[ off size w h img ]
+	if outfileoffsize . size ( ) > maxTexCnt then
+		log ( '[w] tex count %d>%d, please enlarge maxTexCnt' tex1 . size ( ) maxTexCnt )
+	end
+	vkDestroyBuffer ( device buf 0 )
+	vkFreeMemory ( device memory 0 )
+}
+function copyImages ( fileOffSizeWH buf ) {
+	if ( G . tex == null ) then G . tex = { } . copy ( ) end
+	cbs = G . commandBuffers
+	for ( fileOffSizeWH fn item ) { //MT here make quit without message
+		img = allocVkImage ( fn item )
+		item . add ( img )
+	}
+
+	oneTimeCommand ( cbs [ 0 ] cbs . addrAt ( 0 ) , -> ( cb ) {
+			transitionImageLayout ( cb fileOffSizeWH VK_IMAGE_LAYOUT_UNDEFINED VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL )
+		} )
+	oneTimeCommand ( cbs [ 0 ] cbs . addrAt ( 0 ) , -> ( cb ) {
+			for ( fileOffSizeWH fn item ) {
+				copyBufferToImage ( cb item buf )
+			}
+		} )
+	oneTimeCommand ( cbs [ 0 ] cbs . addrAt ( 0 ) , -> ( cb ) {
+			transitionImageLayout ( cb fileOffSizeWH VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL )
+		} )
+	--sync?vkCmdPipelineBarrier?
+}
+function transitionImageLayout ( cb items oldLayout newLayout ) {
+	VK_QUEUE_FAMILY_IGNORED = -1
+	barriers = nativeStructArray ( VkImageMemoryBarrier items . size ( ) )
+	sourceStage = 0
+	destinationStage = 0
+	for ( items fn item i ) {
+		barrier = barriers [ i ]
+		barrier . sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER
+		barrier . oldLayout = oldLayout
+		barrier . newLayout = newLayout
+		barrier . srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED
+		barrier . dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED
+		barrier . image = item [ 4 ] . image [ 0 ]
+		barrier . subresourceRange . aspectMask = VK_IMAGE_ASPECT_COLOR_BIT
+		barrier . subresourceRange . baseMipLevel = 0
+		barrier . subresourceRange . levelCount = 1
+		barrier . subresourceRange . baseArrayLayer = 0
+		barrier . subresourceRange . layerCount = 1
+
+		if ( oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL ) then
+			barrier . srcAccessMask = 0
+			barrier . dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT
+			sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT
+			destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT
+		else
+			if ( oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL ) then
+				barrier . srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT
+				barrier . dstAccessMask = VK_ACCESS_SHADER_READ_BIT
+				sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT
+				destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+			else
+				error ( "unsupported layout transition!" )
+			end
+		end
+	}
+	vkCmdPipelineBarrier ( cb sourceStage destinationStage 0 0 0 0 0 items . size ( ) barriers )
+}
+function copyBufferToImage ( cb item buffer ) {
+	w = item [ 2 ]
+	h = item [ 3 ]
+	img = item [ 4 ]
+	region = struct ( VkBufferImageCopy )
+	region . bufferOffset = item [ 0 ] -- off
+	region . bufferRowLength = 0 // w * 4
+	region . bufferImageHeight = 0 // h
+	region . imageSubresource . aspectMask = VK_IMAGE_ASPECT_COLOR_BIT
+	region . imageSubresource . mipLevel = 0
+	region . imageSubresource . baseArrayLayer = 0
+	region . imageSubresource . layerCount = 1
+	region . imageExtent . width = w
+	region . imageExtent . height = h
+	region . imageExtent . depth = 1
+
+	vkCmdCopyBufferToImage ( cb buffer img . image [ 0 ] VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL 1 region )
+}
+totaldiff = 0
+totalsize = 0
+function createImage ( nametag w h format usage aspectMask ) {
+	device = mkVkDevice ( )
+	imageInfo = struct ( VkImageCreateInfo )
+	imageInfo . sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO
+	imageInfo . imageType = VK_IMAGE_TYPE_2D
+	imageInfo . extent . width = w
+	imageInfo . extent . height = h
+	imageInfo . extent . depth = 1
+	imageInfo . mipLevels = 1
+	imageInfo . arrayLayers = 1
+	imageInfo . format = format
+	imageInfo . tiling = VK_IMAGE_TILING_OPTIMAL
+	imageInfo . usage = usage
+	imageInfo . sharingMode = VK_SHARING_MODE_EXCLUSIVE
+	imageInfo . samples = VK_SAMPLE_COUNT_1_BIT
+	pImage = nativePointerArray ( 1 )
+	checkResult ( vkCreateImage ( device imageInfo 0 pImage ) pos ( ) )
+	image = pImage [ 0 ]
+	//bind memory
+	size = w * h * 4
+	memRequirements = struct ( VkMemoryRequirements )
+	vkGetImageMemoryRequirements ( device image memRequirements )
+	if size != memRequirements . size then
+		log ( "[i] image(%s) size %,d!=%,d(diff=%,d) align=%,d %dx%d" nametag size memRequirements . size memRequirements . size - size
+			memRequirements . alignment w h )
+		totaldiff = totaldiff + memRequirements . size - size
+	end
+	totalsize = totalsize + memRequirements . size
+	allocInfo = struct ( VkMemoryAllocateInfo )
+	allocInfo . sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO
+	allocInfo . allocationSize = memRequirements . size
+	allocInfo . memoryTypeIndex = selectMemIndex ( memRequirements VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT )
+	imageMemory = nativePointerArray ( 1 )
+	checkResult ( vkAllocateMemory ( device allocInfo 0 imageMemory ) pos ( ) )
+
+	vkBindImageMemory ( device image imageMemory [ 0 ] 0 )
+	//make view
+	viewInfo = struct ( VkImageViewCreateInfo )
+	viewInfo . sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO
+	viewInfo . image = image
+	viewInfo . viewType = VK_IMAGE_VIEW_TYPE_2D
+	viewInfo . format = format
+	viewInfo . subresourceRange . aspectMask = aspectMask
+	viewInfo . subresourceRange . baseMipLevel = 0
+	viewInfo . subresourceRange . levelCount = 1
+	viewInfo . subresourceRange . baseArrayLayer = 0
+	viewInfo . subresourceRange . layerCount = 1
+	pView = nativePointerArray ( 1 )
+	checkResult ( vkCreateImageView ( device viewInfo 0 pView ) pos ( ) )
+	return { } . copy ( ) . put ( 'image' pImage ) . put ( 'view' pView )
+}
+function allocVkImage ( fn item ) { // [   off size w h ]
+	if ( G . tex == null ) then G . tex = { } . copy ( ) end
+	w = item [ 2 ]
+	h = item [ 3 ]
+	img = createImage ( fn w h VK_FORMAT_B8G8R8A8_SRGB VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT
+		VK_IMAGE_ASPECT_COLOR_BIT )
+	G . tex [ fn ] = img
+	return img
+}
+function createDepthImageView ( ) {
+	device = mkVkDevice ( )
+	imageCount = initImageCnt ( )
+	if G . depth != null then
+		for ( imageCount i ) {
+			vkDestroyImageView ( device G . depth [ i ] . view [ 0 ] 0 )
+			vkDestroyImage ( device G . depth [ i ] . image [ 0 ] 0 )
+		}
+	end
+	surfCap = G . surfCap
+	width = surfCap . currentExtent . width
+	height = surfCap . currentExtent . height
+	G . depth = [ ] . copy ( )
+	for ( imageCount i ) {
+		G . depth . add ( createImage ( 'depth' width height depthFormat VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+				VK_IMAGE_ASPECT_DEPTH_BIT ) )
+	}
+}
+function mkSampler ( cnt ) {
+	-- if ( _ = G . pSampler ) != null then return _ end
+	samplerInfo = struct ( VkSamplerCreateInfo )
+	samplerInfo . sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO
+	samplerInfo . magFilter = VK_FILTER_LINEAR
+	samplerInfo . minFilter = VK_FILTER_LINEAR
+	samplerInfo . anisotropyEnable = VK_TRUE -- for test?
+	samplerInfo . maxAnisotropy = 16
+	--	samplerInfo . compareOp = VK_COMPARE_OP_ALWAYS
+	--	samplerInfo . mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR
+	pSampler = nativePointerArray ( cnt )
+	device = mkVkDevice ( )
+	for ( cnt i ) {
+		checkResult ( vkCreateSampler ( device samplerInfo 0 pSampler . addrAt ( i ) ) pos ( ) )
+	}
+	--	G . pSampler = pSampler
+	log ( "create sampler cnt=%d" cnt )
+	return pSampler
+}
+function oneTimeCommand ( command_buffer pCommandBuffers work ) {
+	begin_info = struct ( VkCommandBufferBeginInfo )
+	begin_info . sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+	begin_info . flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+	checkResult ( vkBeginCommandBuffer ( command_buffer begin_info ) pos ( ) )
+
+	$work ( command_buffer )
+
+	end_info = struct ( VkSubmitInfo )
+	end_info . sType = VK_STRUCTURE_TYPE_SUBMIT_INFO
+	end_info . commandBufferCount = 1
+	end_info . pCommandBuffers = pCommandBuffers
+	checkResult ( vkEndCommandBuffer ( command_buffer ) pos ( ) )
+	checkResult ( vkQueueSubmit ( mkVkQueueGfx ( ) 1 end_info 0 ) pos ( ) )
+	checkResult ( vkDeviceWaitIdle ( device ) pos ( ) )
+}
+function initPipelines ( ) {
+	createPipeLine ( pipelineNames )
+	log ( "pipelineNames=" + pipelineNames )
+	for ( pipelineNames name ) {
+		fn = 'mkPipelineData_' + name
+		$fn ( )
+		initDescSet ( name )
+	}
+}
+
+// function libmyvk3 ( ) {
+// 	G . includePath . add ( "/usr/local/include/" )
+// 	G . includePath . add ( G . SCRIPT_DIR + "libmyvk3/" )
+// 	putConst ( G [ "consts" ] "VmaAllocHandle" "*" , [ ] . copy ( ) )
+// 	libFuncs = lib ( "myvk3" )
+// 	--	libHeader ( "myvk3" , [ "vk_mem_alloc.h" ] , [ VMA_CALL_PRE ] , [ VMA_CALL_POST VMA_NOT_NULL VMA_NULLABLE VMA_NOT_NULL_NON_DISPATCHABLE VMA_NULLABLE_NON_DISPATCHABLE ] libFuncs getVKCust ( ) )
+// 	libHeader ( "myvk3b" , [ "myvk3.h" ] , [ EXPORT_API ] , [ ] libFuncs , [ ] )
+// 	moveLib ( "myvk3b" "myvk3" )
+// }
+function recreateWhenExtentChanged ( ) {
+	G . surfCap = null
+	old = G . swapchain
+	G . swapchain = null
+	mkSwapchain ( old )
+	createFrameBuffers ( )
+	createPipeLine ( pipelineNames ) -- ...
+	//commandbuffers ok?
+}
+function mkSubmitInfos ( ) {
+	if ( _ = G . submitInfos ) != null then return _ end
+	imageCount = initImageCnt ( )
+	initCommandBuffers ( )
+	G . submitInfos = nativeStructArray ( VkSubmitInfo imageCount )
+	G . presentInfos = nativeStructArray ( VkPresentInfoKHR imageCount )
+	G . swapchainPs = nativePointerArray ( imageCount )
+	vk_ImageIndex = nativeIntArray ( imageCount )
+	waitStages = nativeIntArray ( 1 )
+	waitStages [ 0 ] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+	for ( imageCount imageIndex ) {
+		vk_ImageIndex [ imageIndex ] = imageIndex
+		submitInfo = G . submitInfos [ imageIndex ]
+		submitInfo . sType = VK_STRUCTURE_TYPE_SUBMIT_INFO
+		submitInfo . waitSemaphoreCount = 1
+		submitInfo . pWaitSemaphores = G . imageAvailableSemaphores . addrAt ( imageIndex )
+		submitInfo . pWaitDstStageMask = waitStages
+		submitInfo . commandBufferCount = 1
+		submitInfo . pCommandBuffers = G . commandBuffers . addrAt ( imageIndex )
+		submitInfo . signalSemaphoreCount = 1
+		submitInfo . pSignalSemaphores = G . renderFinishedSemaphores . addrAt ( imageIndex )
+
+		presentInfo = G . presentInfos [ imageIndex ]
+		presentInfo . sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
+		presentInfo . waitSemaphoreCount = 1
+		presentInfo . pWaitSemaphores = G . renderFinishedSemaphores . addrAt ( imageIndex )
+		presentInfo . swapchainCount = 1
+		presentInfo . pSwapchains = swapchainPs . addrAt ( imageIndex )
+		presentInfo . pImageIndices = vk_ImageIndex . addrAt ( imageIndex )
+	}
+	log ( "mkSubmitInfos" )
+	return G . submitInfos
+}
+
+function drawFrame ( ) {
+	device = mkVkDevice ( )
+	swapchain = mkSwapchain ( 0 )
+	//	imageCount = initImageCnt ( )
+	imageIndex0 = imageIndex
+	res = vkAcquireNextImageKHR ( device swapchain timeout
+		G . imageAvailableSemaphores [ imageIndex0 ]
+		0 imageIndex1 )
+	imageIndex = imageIndex1 [ 0 ]
+	-- log ( "imageIndex=%d->%s" imageIndex0 imageIndex )
+	switch ( res ) {
+		VK_SUCCESS -> { }
+		VK_TIMEOUT , VK_NOT_READY -> {
+			log ( "res=VK_TIMEOUT or VK_NOT_READY " )
+			return 0
+		}
+		-> { --default and VK_SUBOPTIMAL_KHR
+			log ( " vkAcquireNextImageKHR ret=%d  recreating swapchain" res )
+			vkWaitForFences ( device 1 G . queueFence VK_TRUE timeout )
+			recreateWhenExtentChanged ( )
+			return 0
+		}
+	}
+
+	doRenderPass ( imageIndex )
+	queue = G . queuesGfx
+	//
+	vkWaitForFences ( device 1 G . queueFence VK_TRUE timeout )
+	vkResetFences ( device 1 G . queueFence )
+	submitInfo = G . submitInfos [ imageIndex ]
+	submitInfo . pWaitSemaphores = G . imageAvailableSemaphores . addrAt ( imageIndex0 )
+	submitInfo . pCommandBuffers = G . commandBuffers . addrAt ( imageIndex ) -- update 
+	checkResult ( vkQueueSubmit ( queue 1 submitInfo G . queueFence [ 0 ] ) pos ( ) )
+	swapchainPs [ imageIndex ] = swapchain -- update 
+	res = ( vkQueuePresentKHR ( queue G . presentInfos [ imageIndex ] ) )
+	switch ( res ) {
+		VK_SUCCESS , VK_SUBOPTIMAL_KHR -> { }
+		-> { log ( "error  vkQueuePresentKHR ret=%d" res ) }
+	}
+	fpsCheck ( )
+}
+
+function fpsCheck ( ) {
+	if G . frameNo == 0 then
+		log ( 'timeit until first frame in %,d ms' currentMs ( ) - appt0 )
+	end
+	G . frameNo = G . frameNo + 1
+	ms = currentMs ( )
+	if ms - lastMs > 1000 then
+		k = 1000 * ( G . frameNo - lastFrameNo ) / ( ms - lastMs )
+		if k < 59 then
+			log ( "fps:%d" k )
+		end
+		lastFrameNo = G . frameNo
+		lastMs = ms
+		tryGC ( )
+	end
+}
+renderPassInfos = 0
+function doRenderPass ( i ) {
+	if renderPassInfos == 0 then
+		G . renderPassInfos = nativeStructArray ( VkRenderPassBeginInfo initImageCnt ( ) )
+	end
+	surfCap = G . surfCap
+	width = surfCap . currentExtent . width
+	height = surfCap . currentExtent . height
+	cb = G . commandBuffers [ i ]
+	checkResult ( vkBeginCommandBuffer ( cb beginInfo ) pos ( ) )
+	renderPassInfo = renderPassInfos [ i ] -- struct ( VkRenderPassBeginInfo )
+	renderPassInfo . sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
+	renderPassInfo . renderPass = mkRenderPass ( )
+	renderPassInfo . framebuffer = G . framebuffers [ i ]
+	//	VkRect2D { { 0 0 } { width height } }
+	--	renderArea = nativeIntArray ( 4 )
+	--	renderArea [ 2 ] = width
+	--	renderArea [ 3 ] = height
+	renderPassInfo . renderArea . extent . width = width // = struct ( VkRect2D renderArea . addr ( ) )
+	renderPassInfo . renderArea . extent . height = height
+	//VkClearValue  = { 0.0f 0.0f 0.0f 1.0f }
+	renderPassInfo . clearValueCount = 2
+	renderPassInfo . pClearValues = clearColor
+
+	vkCmdBeginRenderPass ( cb renderPassInfo VK_SUBPASS_CONTENTS_INLINE )
+
+	for ( pipelineNames name ) {
+		--		log ( '[d]render pipeline ' + name )
+		fn = 'render_' + name
+		$fn ( cb name i )
+	}
+
+	if true then --imgui
+		if ( i == 0 ) then // better performance?
+			myimgui_draw ( )
+		end
+		myimgui_render ( cb )
+	end
+
+	vkCmdEndRenderPass ( cb )
+	checkResult ( vkEndCommandBuffer ( cb ) pos ( ) )
+}
+
+function uploadBuffer ( bufferSize dataBuffer typeFlag ) { // return  VkBuffer * vkBuffer
+	device = mkVkDevice ( )
+	bufferInfo = struct ( VkBufferCreateInfo )
+	bufferInfo . sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO
+	bufferInfo . size = bufferSize
+	bufferInfo . usage = typeFlag
+	bufferInfo . sharingMode = VK_SHARING_MODE_EXCLUSIVE
+	vkBuffers = nativePointerArray ( 1 )
+	checkResult ( vkCreateBuffer ( device bufferInfo 0 vkBuffers ) pos ( ) )
+
+	vkBuffer = vkBuffers [ 0 ]
+	log ( "vkBuffer=%x" vkBuffer )
+	mrq = struct ( VkMemoryRequirements )
+	vkGetBufferMemoryRequirements ( device vkBuffer mrq )
+	log ( "bufMemReq typebits=%x size=%d alignment=%d data_size=%d  usage_flg=%x"
+		mrq . memoryTypeBits mrq . size mrq . alignment bufferSize typeFlag )
+
+	//uint32_t properties =	VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |	VK_MEMORY_PROPERTY_HOST_COHERENT_BIT // |VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+	allocInfo = struct ( VkMemoryAllocateInfo )
+	allocInfo . sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO
+	allocInfo . allocationSize = mrq . size
+	allocInfo . memoryTypeIndex = selectMemIndex ( mrq VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT )
+	memoryP = nativePointerArray ( 1 ) // ( VkDeviceMemory )
+	checkResult ( vkAllocateMemory ( device allocInfo 0 memoryP ) pos ( ) )
+
+	memory = memoryP [ 0 ]
+	checkResult ( vkBindBufferMemory ( device vkBuffer memory 0 ) pos ( ) )
+	-- log ( "mem alloc %d but need %d?\n" mrq . size bufferSize )
+	if dataBuffer != 0 then
+		// copy
+		dataP = nativePointerArray ( 1 )
+		checkResult ( vkMapMemory ( device memory 0 bufferSize 0 dataP ) pos ( ) )
+		data = dataP [ 0 ]
+		-- log ( "map_mem=%x" data )
+		memcpy ( data dataBuffer bufferSize )
+		vkUnmapMemory ( device memory )
+	end
+	return [ ] . copy ( ) . add ( vkBuffers ) . add ( memory )
+}
+function selectMemIndex ( mrq properties ) {
+	memoryTypeIndex = -1
+	memProp = mkMemType ( )
+	for ( memProp . memoryTypeCount i ) {
+		if ( ( mrq . memoryTypeBits & ( 1 << i ) ) != 0 ) &&
+			( ( memProp . memoryTypes [ i ] . propertyFlags & properties ) ==
+				properties ) then
+			memoryTypeIndex = i
+			--log ( "select memoryTypeIndex=%d for buffer" memoryTypeIndex )
+			return memoryTypeIndex
+		end
+	}
+	error ( 'cannot select memory' )
+	return 0
+}
+
+function mkMemType ( ) {
+	if ( _ = G . memProp ) != null then return _ end
+	memProperties = struct ( VkPhysicalDeviceMemoryProperties )
+	vkGetPhysicalDeviceMemoryProperties ( mkVkPhysicalDevice ( ) memProperties )
+	for ( memProperties . memoryTypeCount i ) {
+		log ( "memType[%d/%d]flag:%x  index:%d" i + 1
+			memProperties . memoryTypeCount
+			memProperties . memoryTypes [ i ] . propertyFlags
+			memProperties . memoryTypes [ i ] . heapIndex )
+	}
+
+	for ( memProperties . memoryHeapCount i ) {
+		log ( "memHeaps[%d/%d]flag:%x size:%,d" i + 1
+			memProperties . memoryHeapCount //
+			memProperties . memoryHeaps [ i ] . flags
+			memProperties . memoryHeaps [ i ] . size )
+	}
+	return G . memProp = memProperties
+}
+function pps ( name type defv ) {
+	if G . pps == null || G . pps [ name ] == null || G . pps [ name ] [ type ] == null then return defv end
+	return G . pps [ name ] [ type ]
+}
+function createPipeLine ( shaderNames ) { --fixme release struct?
+	device = mkVkDevice ( )
+	surfCap = mkSurfCap ( )
+	width = surfCap . currentExtent . width
+	height = surfCap . currentExtent . height
+	viewport = struct ( VkViewport )
+	//	viewport . x = 0.0f 	viewport . y = 0.0f
+	viewport . width = width
+	viewport . height = height
+	// viewport . minDepth = 0.0f
+	viewport . maxDepth = 1.0f
+
+	viewportState = struct ( VkPipelineViewportStateCreateInfo )
+	viewportState . sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO
+	viewportState . viewportCount = 1
+	viewportState . pViewports = viewport
+	viewportState . scissorCount = 1
+	viewportState . pScissors = initNativeIntArray ( intArray ( 0 0 width height ) )
+
+	multisampling = struct ( VkPipelineMultisampleStateCreateInfo )
+	multisampling . sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO
+	multisampling . rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
+
+	depthStencil = struct ( VkPipelineDepthStencilStateCreateInfo )
+	depthStencil . sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO
+	depthStencil . depthTestEnable = VK_TRUE
+	depthStencil . depthWriteEnable = VK_TRUE
+	depthStencil . depthCompareOp = VK_COMPARE_OP_LESS
+
+	colorBlendAttachment = struct ( VkPipelineColorBlendAttachmentState )
+	colorBlendAttachment . blendEnable = VK_TRUE
+	colorBlendAttachment . srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA
+	colorBlendAttachment . dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
+	colorBlendAttachment . colorBlendOp = VK_BLEND_OP_ADD
+	colorBlendAttachment . srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE
+	colorBlendAttachment . dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
+	colorBlendAttachment . alphaBlendOp = VK_BLEND_OP_ADD
+	colorBlendAttachment . colorWriteMask = 15
+
+	//VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+	colorBlending = struct ( VkPipelineColorBlendStateCreateInfo )
+	colorBlending . sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO
+	--	colorBlending . logicOp = VK_LOGIC_OP_COPY
+	colorBlending . attachmentCount = 1
+	colorBlending . pAttachments = colorBlendAttachment
+
+	cnt = shaderNames . size ( )
+	graphicsPipelines = nativePointerArray ( cnt )
+	pipelineInfos = nativeStructArray ( VkGraphicsPipelineCreateInfo cnt )
+
+	for ( cnt i ) {
+		--	hint = hints [ shaderNames [ i ] ]
+		ppdata = { } . copy ( )
+		name = shaderNames [ i ]
+
+		inputAssembly = struct ( VkPipelineInputAssemblyStateCreateInfo )
+		inputAssembly . sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO
+		inputAssembly . topology = pps ( name 'topology' VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST )
+
+		rasterizer = struct ( VkPipelineRasterizationStateCreateInfo )
+		rasterizer . sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO
+		rasterizer . polygonMode = pps ( name 'polygonMode' VK_POLYGON_MODE_FILL )
+		rasterizer . lineWidth = 1.0f
+		rasterizer . cullMode = pps ( name 'cullMode' VK_CULL_MODE_BACK_BIT )
+		rasterizer . frontFace = pps ( name 'frontFace' VK_FRONT_FACE_CLOCKWISE )
+
+		mkShaders ( pps ( name 'shaders' name ) ppdata )
+
+		pipelineInfo = pipelineInfos [ i ] //VkGraphicsPipelineCreateInfo
+		pipelineInfo . sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
+		pipelineInfo . stageCount = 2 -- fixed vert + frag
+		pipelineInfo . pStages = ppdata . shaderStages
+		pipelineInfo . pVertexInputState = ppdata . vertexInputInfo
+		pipelineInfo . pInputAssemblyState = inputAssembly
+		pipelineInfo . pViewportState = viewportState
+		pipelineInfo . pRasterizationState = rasterizer
+		pipelineInfo . pMultisampleState = multisampling
+		pipelineInfo . pDepthStencilState = depthStencil
+		pipelineInfo . pColorBlendState = colorBlending
+		pipelineInfo . layout = ppdata . pipelineLayout // s [ 0 ]
+		pipelineInfo . renderPass = mkRenderPass ( )
+	}
+	checkResult ( vkCreateGraphicsPipelines ( device 0 cnt pipelineInfos 0 graphicsPipelines ) pos ( ) )
+	ret = { } . copy ( )
+	for ( cnt i ) {
+		name = shaderNames [ i ]
+		ret [ name ] = graphicsPipelines [ i ]
+	}
+	return G . pipelines = ret
+}
+function mkShaders ( shaderName pp ) {
+	if G . shaders == null then G . shaders = { } . copy ( ) end
+	if ( _ = G . shaders [ shaderName ] ) != null then pp . putAll ( _ ) return _ end
+	log ( "mkShaders %s" shaderName )
+	ss = nativeStructArray ( VkPipelineShaderStageCreateInfo 2 )
+	compileShader ( shaderName pp 'vert' ss [ 0 ] )
+	compileShader ( shaderName pp 'frag' ss [ 1 ] )
+	pp . shaderStages = ss
+
+	vertexInputInfo = struct ( VkPipelineVertexInputStateCreateInfo )
+	pipelineLayouts = nativePointerArray ( 1 )
+	maxcnt = 10
+	descSetLayoutP = nativePointerArray ( maxcnt ) -- max
+	descSetLayoutCntP = nativeIntArray ( 1 )
+	autoFillCreateInfo ( "shaders/bin/" + shaderName + ".vert.spv" "shaders/bin/" + shaderName + ".frag.spv"
+		vertexInputInfo . addr ( ) pipelineLayouts . addrAt ( 0 ) mkVkDevice ( ) descSetLayoutCntP descSetLayoutP )
+	pp . vertexInputInfo = vertexInputInfo
+	pp . pipelineLayout = pipelineLayouts [ 0 ] //pipelineLayoutInfo
+	pp . descSetLayoutCnt = descSetLayoutCntP [ 0 ]
+	pp . descSetLayout = descSetLayoutP [ 0 ]
+	//order = pps ( name 'descOrder' null )
+	//if order != null then
+	//	size = descSetLayoutCntP [ 0 ]
+	//	layout2 = nativePointerArray ( size )
+	//	for ( size i ) {
+	//		layout2 [ i ] = descSetLayoutP [ order [ i ] ]
+	//	}
+	//		pp . descSetLayout = layout2
+	//end
+	--	pp . descSetLayouts = descSetLayoutP
+	log ( "descSetLayoutCnt=%x" pp . descSetLayoutCnt )
+	if pp . descSetLayoutCnt > maxcnt then error ( "need to enlarge maxcnt to %d" pp . descSetLayoutCnt ) end
+	return G . shaders [ shaderName ] = pp
+}
+
+function mkShaderModule ( fn2 ) {
+	key = "shaderModule_" + fn2
+	if ( _ = G [ key ] ) != null then return _ end
+	mapFile = MapFile ( fn2 )
+	createInfo = struct ( VkShaderModuleCreateInfo )
+	createInfo . sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO
+	createInfo . codeSize = mapFile . size ( )
+	createInfo . pCode = mapFile . addr ( )
+
+	shaderModule = nativePointerArray ( 1 )
+	checkResult ( vkCreateShaderModule ( mkVkDevice ( ) createInfo 0 shaderModule ) pos ( ) )
+	mapFile . close ( )
+	ret = ( G [ key ] = shaderModule [ 0 ] )
+	log ( "created shader module %x for %s" ret fn2 )
+	return ret
+}
+
+function compileShader ( shaderName ppdata type toVkPipelineShaderStageCreateInfo ) {
+	fn1 = format ( 'shaders/%s.%s' shaderName type )
+	fn2 = format ( 'shaders/bin/%s.%s.spv' shaderName type )
+	confirmFileExist ( fn1 "input file" )
+	fo2 = FileObj ( fn2 )
+	fo1 = FileObj ( fn1 )
+	if ( ! ( fo2 . isFile ( ) ) ) || fo2 . lastModified ( ) < fo1 . lastModified ( )
+		then
+		FileObj ( 'shaders/bin' ) . mkdirs ( )
+		-- do compile shader
+		log ( "compile shader %s" shaderName )
+		ret = exec ( 'bash' '-c' format ( 'glslc -o %s %s' fn2 fn1 ) )
+		if ret [ 2 ] != 0 then error ( "glslc failed:" + ret ) end
+	end
+	confirmFileExist ( fn2 "generated spirv" )
+
+	shaderStageInfo = struct ( VkPipelineShaderStageCreateInfo toVkPipelineShaderStageCreateInfo )
+	shaderStageInfo . sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
+	if type == "vert" then
+		shaderStageInfo . stage = VK_SHADER_STAGE_VERTEX_BIT
+	else
+		shaderStageInfo . stage = VK_SHADER_STAGE_FRAGMENT_BIT
+	end
+	shaderStageInfo . module = mkShaderModule ( fn2 )
+	shaderStageInfo . pName = "main"
+
+	ppdata [ type + "ShaderStageInfo" ] = shaderStageInfo
+}
+private function confirmFileExist ( fn msg ) {
+	if ! ( FileObj ( fn ) . isFile ( ) ) then
+		error ( "file(%s) not found: %s" msg fn )
+	end
+}
+function createFrameBuffers ( ) {
+	device = mkVkDevice ( )
+	mkImageView ( true )
+	swapchainImageViews = G . swapchainImageViews
+	renderPass = mkRenderPass ( )
+	surfCap = mkSurfCap ( )
+	width = surfCap . currentExtent . width
+	height = surfCap . currentExtent . height
+	imageCount = initImageCnt ( )
+
+	if G . framebuffers != null then
+		log ( "destroy framebuffers" )
+		for ( imageCount i ) {
+			vkDestroyFramebuffer ( device G . framebuffers [ i ] 0 )
+		}
+	end
+	G . framebuffers = ( framebuffers = nativePointerArray ( imageCount ) )
+	framebufferInfo = struct ( VkFramebufferCreateInfo )
+	framebufferInfo . sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
+	framebufferInfo . renderPass = renderPass
+	framebufferInfo . attachmentCount = 2
+	framebufferInfo . width = width
+	framebufferInfo . height = height
+	framebufferInfo . layers = 1
+	attachments = nativePointerArray ( 2 )
+	framebufferInfo . pAttachments = attachments
+	for ( imageCount i ) {
+		attachments [ 0 ] = swapchainImageViews [ i ]
+		attachments [ 1 ] = G . depth [ i ] . view [ 0 ]
+		checkResult ( vkCreateFramebuffer ( device framebufferInfo 0 framebuffers . addrAt ( i ) ) pos ( ) )
+	}
+	log ( "framebuffers(%d) created" imageCount )
+}
+function mkImageView ( needCreate ) {
+	--	needCreate = G . swapchain == null -- for (re)create 
+	if ( ! needCreate ) && G . swapchainImages != null then log ( "no more create Image/View" ) return null end -- no need recreate
+	device = mkVkDevice ( )
+	swapchain = mkSwapchain ( 0 )
+	imageCount0 = initImageCnt ( )
+
+	imageCounts = nativeIntArray ( 1 )
+	checkResult ( vkGetSwapchainImagesKHR ( device swapchain imageCounts 0 ) pos ( ) )
+	imageCount = imageCounts [ 0 ]
+	log ( "imageCountOfSwapChain=%d (imageCount=%s)" imageCount imageCount0 )
+
+	if ( G . swapchainImageViews != null ) then
+		log ( "free %d ImageViews" imageCount )
+		for ( imageCount i ) {
+			vkDestroyImageView ( device G . swapchainImageViews [ i ] 0 )
+			--	vkDestroyImage ( device G . swapchainImages [ i ] 0 )
+		}
+	end
+
+	G . swapchainImages = nativePointerArray ( imageCount ) //new VkImage [ imageCount ]
+	G . swapchainImageViews = nativePointerArray ( imageCount ) //new VkImageView [ imageCount ]
+	checkResult ( vkGetSwapchainImagesKHR ( device swapchain imageCounts G . swapchainImages ) pos ( ) )
+	surfaceFormat = mkSurfaceFormat ( )
+	createInfo = struct ( VkImageViewCreateInfo )
+	createInfo . sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO
+	createInfo . viewType = VK_IMAGE_VIEW_TYPE_2D
+	createInfo . format = surfaceFormat . format
+	createInfo . subresourceRange . aspectMask = VK_IMAGE_ASPECT_COLOR_BIT
+	createInfo . subresourceRange . baseMipLevel = 0
+	createInfo . subresourceRange . levelCount = 1
+	createInfo . subresourceRange . baseArrayLayer = 0
+	createInfo . subresourceRange . layerCount = 1
+	for ( imageCount i ) {
+		createInfo . image = G . swapchainImages [ i ]
+		checkResult ( vkCreateImageView ( device createInfo 0 G . swapchainImageViews . addrAt ( i ) ) pos ( ) )
+	}
+	createDepthImageView ( )
+	log ( "created swapchainImages/Views cnt:%d" imageCount )
+}
+
+function mkRenderPass ( ) {
+	if ( _ = G . renderPass ) != null then return _ end
+	surfaceFormat = mkSurfaceFormat ( )
+	pAttachments = nativeStructArray ( VkAttachmentDescription 2 )
+
+	colorAttachment = pAttachments [ 0 ]
+	colorAttachment . format = surfaceFormat . format
+	colorAttachment . samples = VK_SAMPLE_COUNT_1_BIT
+	colorAttachment . loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR
+	colorAttachment . storeOp = VK_ATTACHMENT_STORE_OP_STORE
+	colorAttachment . stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR
+	colorAttachment . stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE
+	colorAttachment . initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+	colorAttachment . finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+	colorAttachmentRef = struct ( VkAttachmentReference )
+	colorAttachmentRef . attachment = 0
+	colorAttachmentRef . layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+
+	depthAttachment = pAttachments [ 1 ]
+	depthAttachment . format = depthFormat
+	depthAttachment . samples = VK_SAMPLE_COUNT_1_BIT
+	depthAttachment . loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR
+	depthAttachment . storeOp = VK_ATTACHMENT_STORE_OP_STORE
+	depthAttachment . stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR
+	depthAttachment . stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE
+	depthAttachment . initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
+	depthAttachment . finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+	depthAttachmentRef = struct ( VkAttachmentReference )
+	depthAttachmentRef . attachment = 1
+	depthAttachmentRef . layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+
+	subpass = struct ( VkSubpassDescription )
+	subpass . pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS
+	subpass . colorAttachmentCount = 1
+	subpass . pColorAttachments = colorAttachmentRef
+	subpass . pDepthStencilAttachment = depthAttachmentRef
+
+	dependencies = nativeStructArray ( VkSubpassDependency 2 )
+	VK_SUBPASS_EXTERNAL = -1
+	_ = dependencies [ 0 ]
+	_ . srcSubpass = VK_SUBPASS_EXTERNAL
+	_ . dstSubpass = 0
+	_ . srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+	_ . dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+	_ . srcAccessMask = VK_ACCESS_MEMORY_READ_BIT
+	_ . dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+	_ . dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+	_ = dependencies [ 1 ]
+	_ . srcSubpass = 0
+	_ . dstSubpass = VK_SUBPASS_EXTERNAL
+	_ . srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+	_ . dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+	_ . srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+	_ . dstAccessMask = VK_ACCESS_MEMORY_READ_BIT
+	_ . dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT
+
+	renderPassInfo = struct ( VkRenderPassCreateInfo )
+	renderPassInfo . sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO
+	renderPassInfo . attachmentCount = 2
+	renderPassInfo . pAttachments = pAttachments
+	renderPassInfo . subpassCount = 1
+	renderPassInfo . pSubpasses = subpass
+	renderPassInfo . dependencyCount = 2
+	renderPassInfo . pDependencies = dependencies
+
+	renderPasses = nativePointerArray ( 1 )
+	checkResult ( vkCreateRenderPass ( mkVkDevice ( ) renderPassInfo 0 renderPasses ) pos ( ) )
+	renderPass = renderPasses [ 0 ]
+	log ( 'renderPass=%x' renderPass )
+	return G . renderPass = renderPass
+}
+function initImageCnt ( ) {
+	if ( _ = G . ImageCnt ) != null then return _ end
+	mkSurfCap ( )
+	return G . ImageCnt
+}
+function initCommandBuffers ( ) {
+	imageCount = initImageCnt ( )
+	if G . commandBuffers == null then
+		commandBuffers = nativePointerArray ( imageCount )
+		allocInfo = struct ( VkCommandBufferAllocateInfo )
+		allocInfo . sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
+		allocInfo . commandPool = mkCommandPool ( )
+		allocInfo . level = VK_COMMAND_BUFFER_LEVEL_PRIMARY
+		allocInfo . commandBufferCount = imageCount
+		checkResult ( vkAllocateCommandBuffers ( mkVkDevice ( ) allocInfo commandBuffers ) pos ( ) )
+		log ( "alloc commandbuffers %d" imageCount )
+		G . commandBuffers = commandBuffers
+	else
+		vkResetCommandPool ( mkVkDevice ( ) mkCommandPool ( ) 1 )
+		log ( "reset commandPool" )
+	end
+}
+
+function mkAllocator ( ) {
+	if ( _ = G . allocator ) != null then return _ end
+	allocatorInfo = struct ( VmaAllocatorCreateInfo )
+	allocatorInfo . physicalDevice = mkVkPhysicalDevice ( )
+	allocatorInfo . device = mkVkDevice ( )
+	allocatorInfo . instance = mkVkInstance ( )
+	allocators = nativePointerArray ( 1 )
+	checkResult ( vmaCreateAllocator ( allocatorInfo allocators ) pos ( ) )
+	allocator = allocators [ 0 ]
+	log ( "allocator=%x" allocator )
+	return G . allocator = allocator
+}
+function mkSyncer ( ) {
+	if ( _ = G . queueFence ) != null then return _ end
+	device = mkVkDevice ( )
+
+	fenceInfo = struct ( VkFenceCreateInfo )
+	fenceInfo . sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
+	fenceInfo . flags = VK_FENCE_CREATE_SIGNALED_BIT
+	queueFences = nativePointerArray ( 1 )
+	checkResult ( vkCreateFence ( device fenceInfo 0 queueFences ) pos ( ) )
+	queueFence = queueFences [ 0 ]
+	checkValue ( queueFence pos ( ) )
+
+	frameCnt = initImageCnt ( )
+	imageAvailableSemaphores = nativePointerArray ( frameCnt )
+	renderFinishedSemaphores = nativePointerArray ( frameCnt )
+	semaphoreInfo = struct ( VkSemaphoreCreateInfo )
+	semaphoreInfo . sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+	for ( frameCnt i ) {
+		checkResult ( vkCreateSemaphore ( device semaphoreInfo 0 imageAvailableSemaphores . addrAt ( i ) ) pos ( ) )
+		checkResult ( vkCreateSemaphore ( device semaphoreInfo 0 renderFinishedSemaphores . addrAt ( i ) ) pos ( ) )
+		checkValue ( imageAvailableSemaphores [ i ] pos ( ) )
+		checkValue ( renderFinishedSemaphores [ i ] pos ( ) )
+	}
+	G . queueFence = queueFences
+	G . imageAvailableSemaphores = imageAvailableSemaphores
+	G . renderFinishedSemaphores = renderFinishedSemaphores
+	log ( "mkSubmitInfos" )
+}
+function mkDescriptorPool ( ) {
+	if ( _ = G . descriptorPool ) != null then return _ end
+	cnt = 1000
+	iss = intArray ( VK_DESCRIPTOR_TYPE_SAMPLER cnt
+		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER cnt
+		VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE cnt
+		VK_DESCRIPTOR_TYPE_STORAGE_IMAGE cnt
+		VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER cnt
+		VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER cnt
+		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER cnt
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER cnt
+		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC cnt
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC cnt
+		VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT cnt )
+	size = iss . size ( ) / 2
+	/*VkDescriptorPoolSize*/
+	pool_sizes = initNativeIntArray ( iss )
+
+	pool_info = struct ( VkDescriptorPoolCreateInfo )
+	pool_info . sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO
+	pool_info . flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
+	pool_info . maxSets = cnt * size
+	pool_info . poolSizeCount = size
+	pool_info . pPoolSizes = pool_sizes
+	descriptorPoolP = nativePointerArray ( 1 )
+	checkResult ( vkCreateDescriptorPool ( mkVkDevice ( ) pool_info 0 descriptorPoolP ) pos ( ) )
+	descriptorPool = descriptorPoolP [ 0 ]
+	log ( "descriptorPool=%x" descriptorPool )
+	return G . descriptorPool = descriptorPool
+}
+function mkCommandPool ( ) {
+	if ( _ = G . CommandPool ) != null then return _ end
+	device = mkVkDevice ( )
+	poolInfo = struct ( VkCommandPoolCreateInfo )
+	poolInfo . sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
+	poolInfo . flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+	poolInfo . queueFamilyIndex = G . queueFamilyIndexGfx
+	commandPools = nativePointerArray ( 1 )
+	checkResult ( vkCreateCommandPool ( device poolInfo 0 commandPools ) pos ( ) )
+	log ( "CommandPool=%x" commandPools [ 0 ] )
+	return G . CommandPool = commandPools [ 0 ]
+}
+function /*VkSurfaceKHR*/ mkSurface ( ) {
+	if ( _ = G . Surface ) != null then return _ end
+
+	if SDL_Init ( SDL_INIT_VIDEO | SDL_INIT_TIMER ) < 0 then
+		log ( "SDL could not initialize! SDL Error: %s" SDL_GetError ( ) )
+		return false
+	end
+	unWindowFlags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN // later SDL_ShowWindow(window)?
+	sdlWindow = SDL_CreateWindow ( "game" 0 0 800 600 unWindowFlags )
+	if sdlWindow == 0 then
+		error ( "Window could not be created! SDL Error: %s" SDL_GetError ( ) )
+	end
+	log ( "sdlWindow=%x " sdlWindow )
+	G . sdlWindow = sdlWindow
+
+	vulkanSurfaceP = nativePointerArray ( 1 )
+	if SDL_Vulkan_CreateSurface ( sdlWindow mkVkInstance ( ) vulkanSurfaceP ) == SDL_FALSE then
+		error ( "Failed to Create Vulkan Surface: %s " nativeString ( SDL_GetError ( ) ) )
+	end
+	vulkanSurface = vulkanSurfaceP [ 0 ]
+	log ( "(vulkan)Surface=%x" vulkanSurface )
+	return G . Surface = vulkanSurface
+}
+
+function mkSurfCap ( ) { // it contains current values
+	sc = 0
+	if G . surfCap != null then
+		return G . surfCap -- reuse
+	else
+		sc = struct ( VkSurfaceCapabilitiesKHR )
+	end
+	checkResult ( vkGetPhysicalDeviceSurfaceCapabilitiesKHR ( mkVkPhysicalDevice ( ) mkSurface ( ) sc . addr ( ) ) pos ( ) )
+	log ( `surfCapabilities{\n minImageCount=%d, maxImageCount=%d, maxImageArrayLayers=%d, 
+ current(%d,%d),min(%d,%d),max(%d,%d), 
+ supportedTransforms=%x, currentTransform=%x, 
+ supportedCompositeAlpha=%x\n supportedUsageFlags=%s(%x) }`
+		sc . minImageCount sc . maxImageCount sc . maxImageArrayLayers
+		sc . currentExtent . width sc . currentExtent . height
+		sc . minImageExtent . width sc . minImageExtent . height
+		sc . maxImageExtent . width sc . maxImageExtent . height
+		sc . supportedTransforms
+		sc . currentTransform
+		sc . supportedCompositeAlpha
+		sc . supportedUsageFlags
+		sc . supportedUsageFlags )
+	G . ImageCnt = sc . minImageCount
+	return G . surfCap = sc
+}
+function mkSurfaceFormat ( ) {
+	if ( _ = G . surfaceFormat ) != null then return _ end
+	phyDev = mkVkPhysicalDevice ( )
+	surface = mkSurface ( )
+	countP = nativeIntArray ( 1 )
+	checkResult ( vkGetPhysicalDeviceSurfaceFormatsKHR ( phyDev surface countP 0 ) pos ( ) )
+	count = countP [ 0 ]
+	if ( count == 0 ) then error ( "what" ) end
+	formats = nativeStructArray ( VkSurfaceFormatKHR count )
+	checkResult ( vkGetPhysicalDeviceSurfaceFormatsKHR ( phyDev surface countP formats ) pos ( ) )
+	surfaceFormat = 0
+	for ( count i ) {
+		log ( "[%d/%d]format=%s  colorspace=%s\n" i + 1 count
+			formats [ i ] . format formats [ i ] . colorSpace )
+		if ( surfaceFormat != 0 && formats [ i ] . format == VK_FORMAT_R8G8B8A8_SRGB ) then
+			surfaceFormat = formats [ i ]
+			log ( "surfaceFormat select %d/%d" i + 1 count )
+		end
+	}
+	if surfaceFormat == 0 then
+		surfaceFormat = formats [ 0 ]
+		log ( "surfaceFormat fallback to 1/%d" count )
+	end
+	return G . surfaceFormat = surfaceFormat
+}
+function mkSwapchain ( oldSwapchain ) {
+	if ( _ = G . swapchain ) != null then return _ end
+	device = mkVkDevice ( )
+	surface = mkSurface ( )
+	surfCap = mkSurfCap ( )
+	surfaceFormat = mkSurfaceFormat ( )
+	createInfo = struct ( VkSwapchainCreateInfoKHR )
+	createInfo . sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR
+	createInfo . surface = surface
+	createInfo . minImageCount = G . ImageCnt // triple buffering
+	createInfo . imageFormat = surfaceFormat . format
+	createInfo . imageColorSpace = surfaceFormat . colorSpace
+	createInfo . imageExtent = surfCap . currentExtent //VkExtent2D
+	createInfo . imageArrayLayers = 1 // 1 unless stereoscopic 3D application. see surfCap.maxImageArrayLayers
+	createInfo . imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT // | VK_IMAGE_USAGE_TRANSFER_DST_BIT
+	createInfo . imageSharingMode = VK_SHARING_MODE_EXCLUSIVE
+	createInfo . preTransform = surfCap . currentTransform // about rotation, check if support
+	createInfo . compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
+	createInfo . presentMode = VK_PRESENT_MODE_FIFO_KHR // fps=60 //MAILBOX_KHR==2000fps // also check avaiable maybe
+	createInfo . clipped = VK_TRUE
+	createInfo . oldSwapchain = oldSwapchain
+	swapchains = nativePointerArray ( 1 )
+	checkResult ( vkCreateSwapchainKHR ( device createInfo 0 swapchains ) pos ( ) )
+	if oldSwapchain != 0 then
+		log ( "free oldSwapchain" )
+		vkDestroySwapchainKHR ( device oldSwapchain 0 )
+	end
+	swapchain = swapchains [ 0 ]
+	log ( "swapchain=%x" swapchain )
+	return G . swapchain = swapchain
+}
+function mkVkQueueGfx ( ) {
+	mkVkDevice ( )
+	return G . queuesGfx
+}
+
+function mkVkDevice ( ) {
+	if ( _ = G . device ) != null then return _ end
+
+	phyDev = mkVkPhysicalDevice ( )
+	queueFamilyCountP = nativeIntArray ( 1 )
+	vkGetPhysicalDeviceQueueFamilyProperties ( phyDev queueFamilyCountP 0 )
+	queueFamilyCount = queueFamilyCountP [ 0 ]
+	log ( "queueFamilyCount=%d" queueFamilyCount )
+	/*	VkQueueFamilyProperties * */
+	qfps = nativeStructArray ( VkQueueFamilyProperties queueFamilyCount )
+	vkGetPhysicalDeviceQueueFamilyProperties ( phyDev queueFamilyCountP qfps )
+	queueCreateInfos = nativeStructArray ( VkDeviceQueueCreateInfo queueFamilyCount )
+	queuePriority = nativeIntArray ( 100 )
+	for ( queueFamilyCount i ) {
+		queueFamily = qfps [ i ]
+		qci = queueCreateInfos [ i ]
+		qcnt = 0 -- but cannot create 0, just create 1 then
+		if ( queueFamily . queueFlags & VK_QUEUE_GRAPHICS_BIT ) != 0 then -- need this
+			qcnt = 1 -- 1 is enough, AMD 6800 only suply 1
+			if G . queueFamilyIndexGfx == null then G . queueFamilyIndexGfx = i end
+		end
+		qci . sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+		qci . queueFamilyIndex = i
+		qci . queueCount = 1 // qcnt, queueFamily . queueCount
+		qci . pQueuePriorities = queuePriority
+		e3 = queueFamily . minImageTransferGranularity
+		log ( "QueueFamily[%d/%d]  queueFlags=%x  queueCount=%d Extent(%d %d %d)\n"
+			i + 1 queueFamilyCount queueFamily . queueFlags queueFamily . queueCount
+			e3 . width e3 . height e3 . depth )
+	}
+	// descriptorIndex = struct ( VkPhysicalDeviceDescriptorIndexingFeatures )
+	// descriptorIndex . sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES
+	// descriptorIndex . shaderSampledImageArrayNonUniformIndexing = VK_TRUE
+	// descriptorIndex . descriptorBindingPartiallyBound = VK_TRUE
+	// descriptorIndex . descriptorBindingVariableDescriptorCount = VK_TRUE
+	// descriptorIndex . runtimeDescriptorArray = VK_TRUE
+	createInfo = struct ( VkDeviceCreateInfo )
+	// createInfo . pNext = descriptorIndex
+	createInfo . sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
+	createInfo . queueCreateInfoCount = queueFamilyCount
+	createInfo . pQueueCreateInfos = queueCreateInfos
+	createInfo . enabledExtensionCount = 1
+	createInfo . ppEnabledExtensionNames = [ VK_KHR_swapchain ] -- need for VkSwapchainKHR
+	createInfo . enabledLayerCount = 1
+	createInfo . ppEnabledLayerNames = [ VK_LAYER_KHRONOS_validation ]
+	features = struct ( VkPhysicalDeviceFeatures )
+	features . fillModeNonSolid = VK_TRUE
+	features . samplerAnisotropy = VK_TRUE
+	features . shaderInt16 = VK_TRUE -- maybe for fsr2
+	createInfo . pEnabledFeatures = features
+	deviceP = nativePointerArray ( 1 )
+	checkResult ( vkCreateDevice ( phyDev createInfo 0 deviceP ) pos ( ) )
+	device = deviceP [ 0 ]
+	checkValue ( device pos ( ) )
+	G . device = device
+	G . queueFamilyCount = queueFamilyCount
+	log ( "device=%x queueFamilyCount=%d" device queueFamilyCount )
+	queuesTran = 0
+	queuesGfx = 0
+	queue = nativePointerArray ( 1 )
+	for ( G . queueFamilyCount i ) {
+		j = 0
+		vkGetDeviceQueue ( device i j queue )
+		checkValue ( queue [ 0 ] pos ( ) )
+		if ( qfps [ i ] . queueFlags & VK_QUEUE_GRAPHICS_BIT ) != 0 then
+			if queuesGfx == 0 then queuesGfx = queue [ 0 ] end
+		end
+		if ( qfps [ i ] . queueFlags & VK_QUEUE_TRANSFER_BIT ) != 0 then
+			-- prefer a dedicated transfer ?
+			if queuesTran == 0 || queuesTran == queuesGfx then queuesTran = queue [ 0 ] end
+		end
+	}
+	log ( 'queuesGfx=%x queuesTran=%x' queuesGfx queuesTran )
+	G . queuesGfx = queuesGfx
+	G . queuesTran = queuesTran
+
+	return G . device
+}
+function mkVkPhysicalDevice ( ) {
+	if ( _ = G . VkPhysicalDevice ) != null then return _ end
+	instance = mkVkInstance ( )
+	//select one physical device
+	deviceCountP = nativeIntArray ( 1 )
+	vkEnumeratePhysicalDevices ( instance deviceCountP 0 )
+	deviceCount = deviceCountP [ 0 ]
+	log ( "PhysicalDeviceCount=%d" deviceCount )
+	if ( deviceCount <= 0 ) then
+		error ( "no phy dev\n" )
+	end
+	PhysicalDevices = nativePointerArray ( deviceCount )
+	vkEnumeratePhysicalDevices ( instance deviceCountP PhysicalDevices )
+	selection = 0
+	prop = struct ( VkPhysicalDeviceProperties )
+	maxscore = 0
+	for ( deviceCount i ) {
+		vkGetPhysicalDeviceProperties ( PhysicalDevices [ i ] prop )
+		score = switch ( prop . deviceType ) {
+			VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU -> { yield 100 }
+			VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU -> { yield 10 }
+			-> { yield 1 }
+		}
+		if score > maxscore then
+			maxscore = score
+			selection = i
+		end
+		log ( "PhyDev[%d/%d] name:%s (apiVersion=%x driverVersion=%x vendorID=%x deviceID=%x)"
+			i + 1 deviceCount nativeString ( prop . deviceName . addr ( ) )
+			prop . apiVersion prop . driverVersion prop . vendorID prop . deviceID
+		)
+	}
+	log ( "select PhyDev:%d score:%d value=%x" selection + 1 maxscore PhysicalDevices [ selection ] )
+	return G . VkPhysicalDevice = PhysicalDevices [ selection ]
+}
+private function VK_MAKE_API_VERSION ( variant major minor patch ) {
+	return ( variant << 29 ) | ( major << 22 ) | ( minor << 12 ) | patch
+}
+function checkValue ( x pos ) {
+	if x == 0 then
+		log ( "failed checkValue=%s at %s" x pos )
+		stop ( 1 )
+	end
+}
+function checkResult ( x pos ) {
+	if x != 0 then
+		log ( "failed checkResult=%s at %s" x pos )
+		stop ( 1 )
+	end
+}
+function mkVkInstance ( ) {
+	if ( _ = G . VkInstance ) != null then return _ end
+	app = struct ( VkApplicationInfo )
+	app . sType = VK_STRUCTURE_TYPE_APPLICATION_INFO
+	app . pApplicationName = "NA"
+	app . applicationVersion = 1
+	app . pEngineName = "NA"
+	app . engineVersion = 1
+	app . apiVersion = VK_MAKE_API_VERSION ( 0 1 3 0 ) // VK_API_VERSION_1_3
+	// [vk1]ext[1/3]=VK_KHR_surface
+	// [vk1]ext[2/3]=VK_KHR_xlib_surface
+	// [vk1]ext[3/3]=VK_EXT_debug_utils
+	enabledExts = [ VK_KHR_surface VK_KHR_xlib_surface VK_EXT_debug_utils ]
+	inst_info = struct ( VkInstanceCreateInfo )
+	inst_info . sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
+	inst_info . pApplicationInfo = app
+	//	inst_info . enabledLayerCount = 1
+	//	inst_info . ppEnabledLayerNames = [ VK_LAYER_KHRONOS_validation ]
+	inst_info . enabledExtensionCount = enabledExts . size ( )
+	inst_info . ppEnabledExtensionNames = enabledExts
+
+	--	log ( "inst_info=%x  app=%x .app=%x" inst_info . addr ( ) app . addr ( ) inst_info . pApplicationInfo )
+	vulkanInstance = nativePointerArray ( 1 )
+	checkResult ( vkCreateInstance ( inst_info 0 vulkanInstance ) pos ( ) )
+	vi = vulkanInstance [ 0 ]
+	log ( "VkInstance=%x" vi )
+	G . VkInstance = vi
+	mkSurface ( )
+	ret = installDebug ( vi )
+	confirm ( ret == 0 'failed' )
+	return vi
+}
+function mkDescriptorSets ( slot name ) {
+	key = 'descSet_' + slot + "_" + name
+	if ( _ = G [ key ] ) != null then return _ end
+	indexInLayout = slot // pps ( name 'descOrder' , [ 0 1 2 ] ) [ slot ]
+	log ( "mkDescriptorSets slot=%s %s indexInLayout=%s" slot name indexInLayout )
+	imageCnt = initImageCnt ( )
+	descriptorSets = nativePointerArray ( imageCnt )
+	allocInfo = struct ( VkDescriptorSetAllocateInfo )
+	allocInfo . sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO
+	allocInfo . descriptorPool = mkDescriptorPool ( )
+	allocInfo . descriptorSetCount = 1
+	allocInfo . pSetLayouts = G . shaders [ pps ( name 'shaders' name ) ] . descSetLayout + 8 * indexInLayout
+	for ( imageCnt i ) {
+		checkResult ( vkAllocateDescriptorSets ( device allocInfo descriptorSets . addrAt ( i ) ) pos ( ) )
+	}
+
+	return G [ key ] = descriptorSets
+}
+
+function mainloop ( ) {
+	if SDL_Init ( -1 ) != 0 then
+		log ( "error initializing SDL: %s" nativeString ( SDL_GetError ( ) ) )
+		return null
+	end
+
+	event = struct ( SDL_Event )
+	ke = struct ( SDL_KeyboardEvent event )
+
+	mkSurface ( )
+	SDL_ShowWindow ( G . sdlWindow )
+	close = 0
+	SDL_StartTextInput ( )
+	// Events management
+	for ( ) {
+		for ( ) {
+			if SDL_PollEvent ( event ) == 0 then break end
+			-- log ( "event.type=0x%x" event . type )
+			if event . type == 0x100 /*SDL_QUIT*/ then
+				close = 1
+				break
+			end
+			if ( false && event . type == 0x300 /* SDL_KEYDOWN */ ) then
+				kv = ke . keysym . sym
+				log ( "pressed %x" kv )
+				if 0x1b /* SDLK_ESCAPE*/ == kv then
+					close = 1
+					break
+				end
+			end
+			s3d_event ( event )
+			myimgui_event ( event )
+		}
+		drawFrame ( )
+		//	if G . frameNo >= 2 then stop() end
+		if close != 0 then break end
+	}
+	SDL_Quit ( )
+}
+
