@@ -1,0 +1,206 @@
+func getAutoPage ( pagename data ) {
+	pageDef = getConfInFile ( 'page.conf' 'pages.' + pagename )
+	if pageDef == null return 'page not found:' + pagename end
+	sb = [ ]
+	for pageDef . layout line {
+		addLine ( data sb line )
+	}
+	return sb . join ( '' )
+}
+
+func addLine ( data sb line ) {
+	cmd = line [ 0 ]
+	fn = 'add_' + cmd
+	if hasFunc ( fn )
+		$fn ( data sb line )
+	else
+		sb . add ( format ( 'no func for [%s] %s' fn '' + line ) )
+	end
+}
+func getStr ( data s ) {
+	if isEmpty ( s ) return '' end
+	if s . startsWith ( '$' )
+		//	log ( 'get %s in %s' s '' + data )
+		return data . data [ s [ 1 .. ] ] end
+	return s
+}
+// --------
+func add_subsection ( data sb line ) {
+	sb . add ( `<div class="sub-section">` )
+	for line [ 1 .. ] part {
+		addLine ( data sb part )
+	}
+	sb . add ( `</div>` )
+}
+
+func add_head1 ( data sb line ) { _addHead ( data sb line 1 ) }
+func add_head2 ( data sb line ) { _addHead ( data sb line 2 ) }
+func add_head3 ( data sb line ) { _addHead ( data sb line 3 ) }
+func _addHead ( data sb line type ) { sb . add ( format ( '<h%s>%s</h%s>' type getStr ( data line [ 1 ] ) type ) ) }
+func add_addBtn ( data sb line ) {
+	id = line . size ( ) > 2 ? 'id=' + line [ 2 ] : ''
+	sb . add ( format ( `<button %s class="btn btn-primary">%s</button>` id getStr ( data line [ 1 ] ) ) )
+}
+func add_backBtn ( data sb line ) {
+	sb . add ( format ( `<button class="btn backBtn">%s</button>` getStr ( data line [ 1 ] ) ) )
+}
+func add_col2info ( data sb line ) {
+	sb . add ( ` <div class="detail-info">` )
+	dataFunc = 'data2_' + line [ 1 ]
+	if ! hasFunc ( dataFunc )
+		sb . add ( 'data func not found:' + dataFunc )
+		return 0
+	end
+	col2 = $dataFunc ( data sb )
+	for col2 row {
+		sb . add ( format ( `<p><strong>%s:</strong><span>%s</span></p>` row ) )
+	}
+	sb . add ( '</div>' )
+}
+func add_table ( data sb line ) {
+	name = line [ 1 ]
+	//	sb . add ( format ( '<!-- %s -->' name ) )
+	dataFunc = 'dataTable_' + name
+	if ! hasFunc ( dataFunc )
+		sb . add ( 'data func not found:' + dataFunc )
+		return 0
+	end
+	table = $dataFunc ( data sb )
+	sb . add ( `<table class="data-table"><thead><tr>` )
+	for table . head cell {
+		sb . add ( format ( `<th>%s</th>` cell ) )
+	}
+	sb . add ( format ( `</tr></thead><tbody id="tableBody_%s">` name ) )
+	xids = table . xids
+	for table . body row i {
+		sb . add ( format ( '<tr class="%sRow" data-xid="%s">' name xids [ i ] ) )
+		for row cell {
+			sb . add ( format ( `<td>%s` cell ) )
+		}
+	}
+	sb . add ( `</tbody></table>` )
+}
+// --------
+func data2_release_detail_info ( data sb ) {
+	rid = data . req . form ( "rid" )
+	m = trelease . loadMap ( rid )
+	ts = [ 名称
+		概要
+		更新時
+	]
+	m2 = tproject . loadMap ( m . プロジェクトId )
+
+	rows = [ ]
+	rows . add ( array ( "プロジェクト" m2 . 名称 ) )
+
+	for ts tt {
+		rows . add ( array ( tt getV ( "release" m tt ) ) )
+	}
+	return rows
+}
+func data2_project_detail_info ( data sb ) {
+	pid = data . req . form ( "pid" )
+	m = tproject . loadMap ( pid )
+	ts = [
+		名称
+		概要
+		//targetUserId int // 宛先 宛先Email 宛先TgBot
+		//作成者Id int
+		更新時
+		ステータス ]
+	rows = [ ]
+	for ts tt {
+		rows . add ( array ( tt getV ( "project" m tt ) ) )
+	}
+	return rows
+}
+func getV ( tablename m tt ) {
+	v = m [ tt ]
+	if v == null return "" end
+	if tt == "更新時" v = sdf2 ( ) . format ( date ( v ) )
+	elseif tt == "ステータス" v = renderStatusBadge ( v )
+	else
+		if tablename == "deliver"
+			if tt == "ファイル"
+				p1 = v . lastIndexOf ( "." )
+				v = format ( `<a href="downRelease.api?k=%s">%s</a>` urlEncode ( v ) v [ 0 .. p1 ] )
+			elseif tt == "サイズ"
+				if v != null
+					v = format ( "%,d" toLong ( v ) )
+				end
+			end
+		end
+	end
+	return v
+}
+
+function renderStatusBadge ( status ) {
+	badgeClass = ''
+	text = status
+	switch ( status ) {
+		'確認待ち' -> { badgeClass = 'badge-warning' }
+		'作成中' -> { badgeClass = 'badge-info' }
+		'完了' -> { badgeClass = 'badge-success' }
+		'TODO' -> { badgeClass = 'badge-secondary' }
+		'OK' -> { badgeClass = 'badge-success' }
+		'NG' -> { badgeClass = 'badge-danger' }
+		-> { badgeClass = 'badge-light' }
+	}
+	return format ( `<span class="badge %s">%s</span>` badgeClass U . escapeHTML ( text ) )
+}
+
+// --------
+func dataTable_project_list_table ( data sb ) {
+	t = tproject
+	xids = t . all ( )
+	t . sort ( xids "-更新時" )
+	return getTable1 ( t xids , [ 名称 ステータス 更新時 ] )
+}
+func dataTable_release_list_table ( data sb ) {
+	pid = toInt ( data . req . form ( "pid" ) )
+	t = trelease
+	xids = Du . query ( t env ( ) -> r {
+			return r . get ( "プロジェクトId" ) == pid
+		} )
+	t . sort ( xids "-更新時" )
+	return getTable1 ( t xids , [ 名称 更新時 ] )
+}
+function getTable1 ( t xids ts ) {
+	rows = [ ]
+	tname = t . tableName
+	for xids xid {
+		row = [ ]
+		m = t . loadMap ( xid )
+		for ts title {
+			row . add ( getV ( tname m title ) )
+		}
+		rows . add ( row )
+	}
+	return zigmap ( 'head' ts "xids" xids 'body' rows )
+}
+func dataTable_check_list_table ( data sb ) {
+	rid = toInt ( data . req . form ( "rid" ) )
+	t = tchecklist
+	xids = Du . query ( t env ( ) -> r {
+			return r . get ( "リリースId" ) == rid
+		} )
+	t . sort ( xids "-更新時" )
+	return getTable1 ( t xids , [ 名称
+			ステータス
+			更新時 ] )
+}
+func dataTable_deliverable_list_table ( data sb ) {
+	rid = toInt ( data . req . form ( "rid" ) )
+	t = tdeliver
+	xids = Du . query ( t env ( ) -> r {
+			return r . get ( "リリースId" ) == rid
+		} )
+	t . sort ( xids "-更新時" )
+	return getTable1 ( t xids , [ 名称
+			ファイル
+			サイズ
+			ダウンロード数
+			更新時
+		] )
+}
+

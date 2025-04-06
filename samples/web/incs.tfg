@@ -1,0 +1,82 @@
+// pages.tfg got a little long, so move funcs to here
+func ceilDiv ( total pageSize ) {
+	p = total / pageSize
+	if total % pageSize != 0 p += 1 end
+	return p
+}
+func min ( a b ) {
+	if a > b return b else return a end
+}
+func max ( a b ) {
+	if a > b return a else return b end
+}
+
+func nvl ( v ) {
+	if v == null return '' end
+	return v
+}
+
+func getUser ( req ) {
+	return req . getSessionValue ( "_userid" )
+}
+
+func isEmpty ( s ) {
+	return s == null || s . trim ( ) == '' || s == 'null'
+}
+
+func sdf1 { return SDF ( 'yyyy/MM/dd' ) }
+func sdf2 { return SDF ( 'yyyy/MM/dd HH:mm' ) }
+func sdf3 { return SDF ( 'yyyyMMddHHmmss' ) }
+func template ( fn data ) {
+	return T . render ( G . localPath + '/WEB-INF/template/' + fn data )
+}
+
+func filterOutPos ( s ) {
+	if s . endsWith ( ']' )
+		p1 = s . lastIndexOf ( '[' )
+		if p1 > 0 s = s [ 0 .. p1 ] . trim ( ) end
+	end
+	return s
+}
+
+func setBasicInfo ( baseurl baseurlPersist localPath ) {
+	G . baseurl = baseurl
+	G . baseurlPersist = baseurlPersist
+	G . localPath = localPath
+}
+
+html_tail = `	</body ></html >`
+func service ( req resp path servlet ) {
+	log ( '[tfg]service:' + path )
+	loop { if path . startsWith ( '/' ) path = path [ 1 .. ] else break end }
+	if path == '' path = 'index.html' end
+	if path . endsWith ( '.html' )
+		|| path . endsWith ( '.json' )
+		|| path . endsWith ( '.js' )
+		|| path . endsWith ( '.api' )
+		pagefunc = path . replace ( '.' '_' )
+		if ! hasFunc ( pagefunc )
+			resp . status ( "404" )
+			resp . flushHeader ( )
+			return 404
+		end
+		data = zigmap ( 'baseurl' G . baseurl 'baseurlPersist' G . baseurlPersist 'appname' G . appname )
+		try {
+			$pagefunc ( req resp data )
+		} catch ( ex ) {
+			log ( '[tfg.service] err %s %s' pagefunc ex )
+			if pagefunc . endsWith ( '_json' )
+				logError ( 'pagefunc' ex )
+				m = zigmap ( 'error' ex )
+				U . writeJson ( resp m )
+			else
+				throwException ( ex )
+			end
+		}
+	else
+		resp . status ( "404" )
+		resp . flushHeader ( )
+	end
+}
+
+

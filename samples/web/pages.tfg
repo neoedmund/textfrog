@@ -1,0 +1,80 @@
+inline ( 'incs.tfg' )
+inline ( 'autopage.tfg' )
+include ( "tables.tfg" )
+runnable init {
+	G . T = JavaClass ( 'neoe.webapp.tfg.Template2Tfg' )
+	G . U = JavaClass ( 'neoe.webapp.tfg.WU' )
+	G . Du = JavaClass ( 'neoe.db.Db' )
+	G . db = JavaClass ( "neoe.nedb2.NeoeDB" ) . get ( )
+	G . appname = 'プロジェクト・リリース'
+	setTables ( )
+}
+func wrapPage ( data s other ) {
+	return template ( 'head.html' data )
+	+ `<div class="container">`
+	+ s
+	+ `</div>`
+	+ other
+	+ template ( 'tail.html' data )
+}
+func pl_html req resp data {
+	data . otherjs = template ( "pl.js" data )
+	U . writeHtml ( resp wrapPage ( data getAutoPage ( 'project_list' zigmap ( 'data' data "req" req "resp" resp ) )
+			"" ) )
+}
+func pd_html req resp data {
+	data . otherjs = template ( "pd.js" data )
+	U . writeHtml ( resp wrapPage ( data getAutoPage ( 'project_detail' zigmap ( 'data' data "req" req "resp" resp ) )
+			"" ) )
+}
+func rd_html req resp data {
+	m = trelease . loadMap ( toInt ( req . form ( "rid" ) ) )
+	data . pid = m . プロジェクトId
+	data . otherjs = template ( "rd.js" data )
+	U . writeHtml ( resp wrapPage ( data getAutoPage ( 'release_detail' zigmap ( 'data' data "req" req "resp" resp ) )
+			"" ) )
+}
+func upfile_api req resp data {
+	m = U . json2param ( req )
+	log ( "m=%s" "" + m )
+	xid = tdeliver . insUpdOneMap ( m )
+	U . writeJson ( resp zigmap ( "xid" xid ) )
+}
+func delfile_api req resp data {
+	m = U . json2param ( req )
+	xid = req . form ( "xid" )
+	tdeliver . delete ( toInt ( xid ) )
+	U . writeJson ( resp zigmap ( "xid" xid ) )
+}
+func downRelease_api req resp data {
+	k = req . form ( "k" )
+	if k . contains ( ".." ) error ( "404" ) end
+	fn = "/opt/www/release/" + k
+	addCnt ( k )
+	p1 = k . lastIndexOf ( "." )
+	JavaClass ( "neoe.httpd.FileServ" ) . run ( FileObj ( fn ) req resp k [ 0 .. p1 ] )
+}
+func addCnt ( k ) {
+	t = tdeliver
+	xids = Du . query ( t env ( ) -> r { return r . get ( "ファイル" ) == k } )
+	for xids xid {
+		m = t . loadMap ( xid )
+		cnt = m . ダウンロード数
+		if cnt == null cnt = 0 end
+		m . ダウンロード数 = cnt + 1
+		t . insUpdOneMap ( m )
+		log ( "download %,d [%s]" cnt k )
+	}
+}
+func addCnt_cnt ( k ) {
+	xid = Du . queryOne ( tcnt env ( ) -> r {
+			return r . get ( "name" ) == k } )
+	cnt = 0
+	if xid != null
+		m2 = tcnt . loadMap ( xid )
+		cnt = m2 . cnt
+	else xid = 0
+	end
+	tcnt . insUpdOneMap ( zigmap ( "xid" xid "name" k "cnt" cnt + 1 ) )
+}
+
