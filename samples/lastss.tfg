@@ -1,0 +1,6 @@
+#!/usr/bin/env textfrog
+include ( 'ffdown.tfg' )
+runnable main ( args ) {
+	dir = '/home/neoe/ss/'
+	sortFile ( dir )
+}

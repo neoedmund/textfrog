@@ -1,0 +1,69 @@
+#!/usr/bin/env textfrog
+/*
+tfg gitcheck /opt/cos 10
+check .git repo in dir for max N level
+	see if not committed 
+	or pull?
+
+
+*/
+
+runnable main args {
+	rootdir = args [ 0 ]
+	maxlv = toInt ( args [ 1 ] )
+	gitcheck ( FileObj ( rootdir ) maxlv )
+}
+func gitcheck ( f1 lv ) {
+	if lv <= 0 return -1 end
+	if ! f1 . isDirectory ( ) return 0 end
+	fs = f1 . listFiles ( )
+	sub = [ ]
+	for fs f2 {
+		if f2 . isDirectory ( )
+			if f2 . getName ( ) == '.git'
+				gitcheck_find ( f2 )
+				return 1
+			end
+			sub . add ( f2 )
+		end
+	}
+	// not found?
+	if lv <= 0 return -1 end
+	for sub f {
+		gitcheck ( f lv -1 )
+	}
+}
+
+func gitcheck_find ( f2 ) {
+	dir = f2 . getParentFile ( ) . getAbsolutePath ( )
+	log ( 'found git repo: %s' dir )
+	ret = execp ( dir 'git' 'status' )
+	r0 = ret [ 0 ]
+	s1 = 'Changes to be committed:'
+	s2 = 'Changes not staged for commit:'
+	if r0 . contains ( s1 ) || r0 . contains ( s2 )
+		log ( 'repo_result NG:[%s] remote[%s] %s' dir getRemote ( dir ) '' + ret )
+	elseif r0 . contains ( '(use "git push" to publish your local commits)' )
+		log ( 'repo_result NG need push:[%s] remote[%s] %s' dir getRemote ( dir ) '' + ret )
+	elseif r0 . contains ( 'nothing to commit, working tree clean' )
+		pull = '' + gitpull ( dir )
+		if pull . contains ( 'Already up to date.' )
+			log ( 'repo_result OK![%s] Already up to date.' dir )
+		else
+			log ( 'repo_result OK2[%s] pull [%s] %s' dir pull '' + ret )
+		end
+	elseif r0 . contains ( 'nothing added to commit but untracked files present' )
+		pull = '' + gitpull ( dir )
+		log ( 'repo_result OK with untracked [%s] pull [%s] %s' dir pull '' + ret )
+	else
+		log ( 'repo_result OK?[%s] pull [%s] %s' dir gitpull ( dir ) '' + ret )
+	end
+}
+func gitpull ( dir ) {
+	ret = execp ( dir 'git' 'pull' )
+	return '' + ret
+}
+func getRemote ( dir ) {
+	ret = execp ( dir 'git' 'remote' '-v' )
+	return ret [ 0 ]
+}

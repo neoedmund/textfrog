@@ -1,0 +1,19 @@
+include ( "godrand.tfg" )
+/*
+chmod +x randstr.tfg
+textfrog randstr.tfg
+Hx6$GLBh1cvq
+dco5Dt$6VTpI
+*/
+runnable main {
+	len = 12
+	chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@$"
+	cs = chars . length ( )
+	sb = [ ]
+	for len i {
+		v = nextNum ( )
+		if v < 0 v = 0 - v end
+		sb . add ( chars [ v % cs ] )
+	}
+	log ( sb . join ( "" ) )
+}

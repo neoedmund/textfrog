@@ -1,0 +1,27 @@
+#!/usr/bin/env textfrog
+/*
+some math test
+*/
+runnable main {
+	cnt = 63
+	vs0 = [ 0 ] * cnt
+	vs1 = [ 0 ] * cnt
+	v = 1
+	for cnt i {
+		v <<= 1
+		if ( v < 0 ) log ( 'break on %s' v ) break end
+		vs0 [ i ] = v
+		k = ( vs1 [ i ] = sumDigit10 ( v ) )
+		log ( '%s %s %s %s %s' v k k % 9 k % 11 k % 7 )
+	}
+}
+func sumDigit10 ( v ) {
+	s = 0
+	loop {
+		s += v % 10
+		v = v / 10
+		if v == 0 break end
+	}
+	return s
+}
+

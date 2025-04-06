@@ -1,0 +1,24 @@
+#!/usr/bin/env textfrog
+runnable main args {
+	fn = args [ 0 ]
+	f = FileObj ( fn )
+	if ! f . exists ( ) log ( 'file %s not exists' fn ) return 1 end
+	fn1 = f . getName ( )
+	fn2 = safeFn ( fn1 )
+	if fn2 == fn1 log ( 'no need to rename' ) return 0 end
+	f2 = FileObj ( f . getParent ( ) + '/' + fn2 )
+	b = f . renameTo ( f2 )
+	log ( 'renamed to %s ret=%s' f2 . getAbsolutePath ( ) b )
+}
+func safeFn ( fn1 ) {
+	sb = newSB ( )
+	for fn1 c {
+		c = toChar ( c )
+		if c == '.' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
+			sb . addChar ( c )
+		else
+			sb . addChar ( '_' )
+		end
+	}
+	return sb . str ( )
+}

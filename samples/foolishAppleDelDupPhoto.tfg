@@ -1,0 +1,11 @@
+#!/usr/bin/env textfrog
+
+runnable main {
+	dir = '/opt/github/neoedmund/photo'
+	filewalk dir fn 1 {
+		if fn.endsWith(' 2.jpeg')||fn.endsWith('(1).jpeg')
+			log('rm %s' fn)
+			FileObj(fn).delete()
+		end
+	}
+}

@@ -1,0 +1,15 @@
+#!/usr/bin/env textfrog
+/* run with 
+textfrog sort1.tfg testcase1.log
+*/
+// sort the lines of text
+runnable function main ( args ) {
+	fn = args [ 0 ]
+	txt = file ( fn )
+	lines = txt . split ( "\n" )
+	lines = lines . filter ( -> ( x ) { return ! ( x . contains ( ".so" ) ) } )
+	lines = lines . uniq ( ) . sort ( )
+	txt2 = "---------{\n" + lines . join ( "\n" ) + "\n-------------}\n"
+	log ( txt2 )
+	save ( txt2 , "/ram/out1.log" ) ;
+}

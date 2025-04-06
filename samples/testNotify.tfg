@@ -1,0 +1,11 @@
+#!/usr/bin/env textfrog
+include ( 'notify.tfg' )
+runnable test {
+	execp ( 'notifier' 'nb' )
+	notify ( 'a100' )
+	sleep ( 1000 )
+	notify ( 'b234' )
+	sleep ( 2000 )
+	G . notifyWindow . close ( )
+}
+

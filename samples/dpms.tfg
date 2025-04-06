@@ -1,0 +1,30 @@
+#!/usr/bin/env textfrog
+/*
+tfg dpms
+
+DPMS (Energy Star):
+  Standby: 3600    Suspend: 3600    Off: 3600
+  DPMS is Enabled
+  Monitor is On
+  
+ linux , adjust dpms to 3600 ( 1 hour)
+*/
+include ( 'util.tfg' )
+runnable main {
+	r = checkBash ( '.' 'xset q' )
+	txt = r [ 0 ]
+	f = finder ( txt )
+	f . find ( 'DPMS (Energy Star):' )
+	f . find ( 'Standby:' )
+	s1 = toInt ( f . readUntil ( 'Suspend:' ) . trim ( ) )
+	s2 = toInt ( f . readUntil ( 'Off:' ) . trim ( ) )
+	s3 = toInt ( f . readUntil ( '\n' ) . trim ( ) )
+	v1 = 3601
+	if s1 < v1
+		log ( 'go to change: %s %s %s -> %s %s %s' s1 s2 s3 v1 v1 v1 )
+		checkBash ( '.' format ( 'xset dpms %s %s %s' v1 v1 v1 ) )
+		checkBash ( '.' 'xset s off' ) // disable screensaver
+	else
+		log ( 'not to change: %s %s %s' s1 s2 s3 )
+	end
+}

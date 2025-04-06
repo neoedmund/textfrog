@@ -1,0 +1,13 @@
+#!/usr/bin/env textfrog
+// XXH_PUBLIC_API XXH64_hash_t XXH64(const void* input, size_t length, XXH64_hash_t seed);
+include ( 'lib.tfg' )
+libxxhash ( )
+
+
+runnable main {
+	s = "neoedmund"
+	len = s . length ( )
+	hash = XXH64 ( allocString ( s ) len 1394 )
+	log ( 'hash (len %d) = %X' len hash )
+}
+

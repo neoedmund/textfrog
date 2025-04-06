@@ -1,0 +1,25 @@
+#!/usr/bin/env textfrog
+/*
+tfg mirrorString
+*/
+runnable main {
+	fn = '/home/neoe/Downloads/6699(1).txt'
+	fileline fn line i {
+		x = line [ 0 .. 8 ]
+		if x . startsWith ( '66' ) && x . endsWith ( '99' )
+			log ( x )
+		end
+		//if mirror ( x i ) 			log ( x ) 		end
+	}
+}
+func mirror ( x j ) {
+	x = x . replace ( '6' '9' )
+	len = x . length ( )
+
+	for len / 2 i {
+		if ( j == 0 ) log ( '%s %s-%s' len x [ i ] x [ len - i -1 ] ) end
+		if toChar ( x [ i ] ) != toChar ( x [ len - i -1 ] ) return false end
+	}
+	return true
+}
+

@@ -1,0 +1,44 @@
+#!/usr/bin/env textfrog_su
+// tar using zstd, wrapper
+// pzst.tfg 
+runnable function main ( args ) {
+	info = "tar using zstd, wrapper\n args: src dst"
+	if args . size ( ) == 0 then
+		log ( info )
+		return 1
+	end
+	src = args [ 0 ]
+	dst = args [ 1 ]
+	opt = ''
+	if args . size ( ) > 2 opt = ' ' + args [ 2 .. ] . join ( ' ' ) end
+	pzst ( src dst opt )
+}
+func pzst ( src dst opt ) {
+	if ! ( FileObj ( src ) . exists ( ) ) then
+		log ( "src(%s) not exists" src )
+		return 1
+	end
+	if ! ( dst . contains ( "." ) ) then
+		dst = dst + ".tar.zst"
+	end
+	if ( FileObj ( dst ) . exists ( ) ) then
+		log ( "dst(%s) already exists" dst )
+		return 1
+	end
+	cmd = ""
+	if FileObj ( src ) . isFile ( ) then
+		cmd = parseData ( format (
+				"[tar --use-compress-program 'pzstd%s' -cf   '%s'  '%s'  ]" opt dst src ) )
+	else --dir
+		cmd = parseData ( format (
+				"[tar --use-compress-program 'pzstd%s' -cf  '%s' -C '%s' . ]" opt dst src ) )
+	end
+	ret = exec ( cmd )
+	if ret [ 2 ] == 0 then
+		log ( "done:" + ret )
+		ls = exec ( "ls" "-l" dst )
+		log ( ls )
+	else
+		log ( "error:" + ret )
+	end
+}

@@ -1,0 +1,67 @@
+#!/usr/bin/env textfrog
+/*
+tfg adbsync.tfg /ram/unpack/book12D8/ /sdcard/Music/book/
+*/
+include ( 'util.tfg' )
+runnable push args {
+	src = args [ 0 ] target = args [ 1 ]
+
+	ret = checkBash ( '.' format ( `adb shell ls -1 %s` target ) )
+	fs = set ( [ ] )
+	for ret [ 0 ] . split ( '\n' ) fn {
+		fn = fn . trim ( )
+		if fn == '' continue end
+		fn = fn . replace ( '\\ ' ' ' )
+		fs . add ( fn )
+	}
+	log ( 'existing:%s' '' + fs )
+	ss = FileObj ( src ) . listFiles ( )
+	todo = [ ]
+	for ss f1 i {
+		if f1 . isFile ( )
+			fn = f1 . getName ( )
+			if fs . contains ( fn )
+				log ( '[skip]%s' fn )
+			else
+				log ( '[queue]%s' fn )
+				todo . add ( fn )
+
+			end
+		end
+	}
+	cnt = todo . size ( )
+	for todo fn i {
+		log ( '[push %d/%d]' i cnt fn )
+		checkBash ( src format ( `adb push '%s' %s` fn target ) )
+	}
+}
+runnable pull args {
+	src = args [ 0 ] target = args [ 1 ]
+
+	ret = checkBash ( '.' format ( `adb shell ls -1 %s` target ) )
+	fs = set ( [ ] )
+	for ret [ 0 ] . split ( '\n' ) fn {
+		fn = fn . trim ( )
+		if fn == '' continue end
+		fn = fn . replace ( '\\ ' ' ' )
+		fs . add ( fn )
+	}
+	log ( 'existing:%s' '' + fs )
+	// ss = FileObj ( src ) . listFiles ( ) 
+	todo = [ ]
+	for fs f i {
+		f1 = FileObj ( src + '/' + f )
+		if f1 . isFile ( )
+			log ( '[skip]%s' f )
+		else
+			log ( '[queue]%s' f )
+			todo . add ( f )
+		end
+	}
+	log ( 'scanned %s' fs . size ( ) )
+	cnt = todo . size ( )
+	for todo f i {
+		log ( '[pull %d/%d]%s' i cnt f )
+		checkBash ( src format ( `adb pull '%s/%s' .` target f ) )
+	}
+}

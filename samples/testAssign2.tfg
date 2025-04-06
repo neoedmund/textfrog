@@ -1,0 +1,9 @@
+#!/usr/bin/env textfrog
+runnable test {
+	a = 2
+	b = 3
+	b += a
+	log ( b )
+	a *= 5
+	log ( a )
+}

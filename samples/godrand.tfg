@@ -1,0 +1,21 @@
+
+G . godrand = { }
+G . godrandNum = now ( )
+function nextNum ( ) {
+	num = G . godrandNum
+	n = toLong ( num * num + 17 * num + 31 )
+	t = 0
+	for {
+		if G . godrand . containsKey ( n )
+			n = toInt ( n + 1 )
+			t = t + 1
+		else
+			G . godrand [ n ] = 1
+			break
+		end
+	}
+	if t > 0 log ( 'nextRand retried %d times' t ) end
+	G . godrandNum = n
+	return n
+}
+

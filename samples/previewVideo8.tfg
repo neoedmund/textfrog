@@ -1,0 +1,8 @@
+#!/usr/bin/env textfrog
+
+// extract video into 8 frames and merge to an image
+runnable main args {
+	fn = args[0]
+	if ! FileObj(fn).isFile() log('file not exists %s' fn) return 1 end
+	
+}

@@ -1,0 +1,25 @@
+#!/usr/bin/env textfrog
+# print firefox downloaded files from ~/Downloads
+runnable main ( args ) {
+	dir = homeDir ( ) + '/Downloads/'
+	sortFile ( dir )
+}
+func getLastDownload {
+	return getFileSorted ( homeDir ( ) + '/Downloads/' 1 ) [ 0 ] . getAbsolutePath ( )
+}
+func getFileSorted ( dir maxc ) {
+	fs = toList ( FileObj ( dir ) . listFiles ( ) ) . filter ( -> x { return x . isFile ( ) } )
+	fs = fs . sort ( -> a b { x = a . lastModified ( ) y = b . lastModified ( )
+			if x > y return 1 end
+			if x < y return -1 end
+			return 0 } )
+	p = fs . size ( ) - maxc
+	if p > 0 fs = fs [ p .. ] end
+	return fs
+}
+func sortFile ( dir ) {
+	maxc = 20
+	if args . size ( ) > 0 maxc = toInt ( args [ 0 ] ) end
+
+	log ( getFileSorted ( dir maxc ) . join ( '\n' ) )
+}

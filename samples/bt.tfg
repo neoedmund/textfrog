@@ -1,0 +1,75 @@
+#!/usr/bin/env textfrog
+// bluetooth device connect
+/*
+tilix  -e    "bluetoothctl scan on"
+
+see manual :  
+	/opt/lab/lab0/GAME/Zero2_Manual.pdf
+	press power+x to start xbox mode
+	long press 'select' to enter bluetooth (re)pair mode 
+*/
+include ( 'util.tfg' )
+include ( 'kill.tfg' )
+include ( 'setAudioBluez.tfg' )
+runnable main args {
+	dev = args [ 0 ]
+	m = parseData ( `{
+		gamepad: "8C:41:F2:C8:49:5E" // which is bad axis 0
+		zero2ns : "98:B6:E9:BE:03:05"
+		zero2d: "E4:17:D8:BE:03:05"
+		X3L:"FC:E8:06:33:25:C6" // earphone
+		z2x: "E4:17:D8:BE:03:FA" // prefered xbox mode
+		z2c: "E4:17:D8:41:03:05"
+		linkbuds: "88:C9:E8:04:B1:74" 
+		// sn30y:"E4:17:D8:15:71:79"//		 8Bitdo SN30 Pro
+		sn30x:"E4:17:D8:93:F7:79"// 8Bitdo SN30 Pro
+		CH520:"30:53:C1:D8:DB:79" //WH-CH520 
+		W2:"00:00:A0:08:09:44" //earphone L 
+		C310: "90:7A:58:BA:FB:DC" // sony WI-C310 
+		rhand: "E0:6C:4E:64:B5:B5" // rakuten hand?
+		dellnote:"AC:19:8E:51:34:0B" // ?
+		sonyear:"88:C9:E8:04:B1:74" 
+		hr_x:"DC:FE:23:68:4B:4A" // keyence hr-x500wb barcode reader
+		}` )
+	id = m [ dev ]
+	if id == null log ( 'cannot find ' + dev ) return 0 end
+	wd = '/ram'
+	-- kills ( [ bluetoothctl ] )
+	ret = tryBash ( wd 'ps -ef' )
+	if ! ( ret [ 0 ] . contains ( '/usr/sbin/bluetoothd' ) )
+		tryBash ( wd 'sudo /etc/init.d/bluetooth restart' )
+	end
+	#log ( tryBash ( wd 'bluetoothctl remove ' + id ) )
+	t = thread ( -> { sleep ( 2000 ) exec ( 'tilix' '-e' '/usr/bin/bluetoothctl scan on' ) } )
+	sleep ( 1000 )
+	loop {
+		ret = tryBash ( wd 'bluetoothctl pair ' + id )
+		log ( "" + ret )
+		if ret [ 2 ] == 0 break
+		elseif ret [ 0 ] . contains ( "AlreadyExists" )
+			//log ( tryBash ( wd 'bluetoothctl cancel-pairing ' + id ) )
+			# log ( tryBash ( wd 'bluetoothctl remove ' + id ) )
+			break
+		else
+			sleep ( 1000 )
+		end
+	}
+	loop {
+		ret = tryBash ( wd 'bluetoothctl connect ' + id )
+		log ( "" + ret )
+		if ret [ 2 ] == 0 break
+		else sleep ( 1000 )
+		end
+	}
+	log ( '' + tryBash ( wd 'bluetoothctl trust ' + id ) ) // for auto reconnect
+	// t . interrupt ( )
+	sleep ( 2000 )
+	tryBash ( wd 'sudo chown neoe:neoe /dev/input/*' )
+	checkBash ( wd 'ls -l /dev/input/' )
+	tryBash ( wd 'kill.tfg ev4.tfg' )
+	tryBash ( wd 'kill.tfg bluetoothctl' )
+
+	if dev == 'CH520' || dev == 'C310'
+		setAudioBluez ( )
+	end
+}

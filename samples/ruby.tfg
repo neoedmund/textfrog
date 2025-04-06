@@ -1,0 +1,151 @@
+#!/usr/bin/env textfrog
+// add html ruby for japanese
+include ( "lib.tfg" )
+include ( "zstdres.tfg" )
+func initRuby {
+	if G . ruby != null return 0 end
+	G . ruby = { } G . rbcont = [ ]
+	fn = '/ram/jp_dict2.zst'
+	buffOut = loadZstdResource0 ( fn )
+	JavaClass ( 'neoe.apps.Ruby' ) . initRuby ( buffOut . bb ( ) , buffOut . bb ( ) . limit ( ) , G . ruby )
+	log ( 'init ruby %,d / conn %,d' G . ruby . size ( ) G . rbcont . size ( ) )
+	G . rbcont = toList ( G . ruby . keySet ( ) )
+	G . rbcont . sort ( )
+	log ( 'init2 ruby %,d / conn %,d' G . ruby . size ( ) G . rbcont . size ( ) )
+}
+func autoRuby ( t ) {
+	if G . ruby == null initRuby ( ) end
+	p1 = 0
+	tl = t . length ( )
+	ss = [ ]
+	s = ''
+	tips = set ( [ ] )
+	loop {
+		if p1 >= tl break end
+		s += t [ p1 ] p1 += 1
+		//	log ( '[d]s=%s' s )
+		if findRubyCont ( s )
+		else
+			s = _rubySubmit ( ss s tips )
+			p1 += 0 - s . length ( )
+			s = ''
+		end
+	}
+	if s . length ( ) > 0
+		k = G . ruby [ s ]
+		if k != null ss . add ( format ( '<ruby>%s<rt>%s</rt></ruby>' s k ) )
+		else
+			s = _rubySubmit ( ss s tips )
+			ss . add ( s )
+		end
+	end
+	return ss . join ( '' )
+}
+func findRubyCont ( s ) {
+	cs = G . rbcont
+	p1 = 0
+	p2 = cs . size ( ) -1
+	if cs [ p1 ] . startsWith ( s ) || cs [ p2 ] . startsWith ( s ) return true end
+	if cs [ p1 ] > s || cs [ p2 ] < s return false end
+	loop { // 2 div
+		if p2 - p1 <= 1 break end
+		p3 = ( p2 + p1 ) / 2
+		x = cs [ p3 ]
+		if x . startsWith ( s ) return true end
+		if x < s
+			p1 = p3
+		else
+			p2 = p3
+		end
+	}
+	return cs [ p1 ] . startsWith ( s ) || cs [ p2 ] . startsWith ( s )
+}
+func _rubySubmit ( ss s0 tips ) {
+	//	if s == '' return s end
+	s = s0
+	if s . length ( ) == 1
+		//		log ( '[d]submit1(%s)' s )
+		ss . add ( s ) s = ''
+	else
+		p2 = -2
+		loop {
+			if p2 < -1 - s . length ( )
+				ss . add ( s [ 0 .. 1 ] )
+				s = s [ 1 .. ]
+				break
+			end
+			s2 = s [ 0 .. p2 ]
+			k = G . ruby [ s2 ]
+			if k == null p2 -= 1 continue
+			else
+				s = s [ p2 .. -1 ]
+				ss . add ( format ( '<ruby>%s<rt>%s</rt></ruby>' s2 reduceRuby ( k s [ 0 .. 1 ] tips s2 ) ) )
+				//			log ( '[d]submit(%s,%s,%s,%s)' s0 s2 k s )
+				break
+			end
+		}
+	end
+	return s
+}
+func reduceRuby ( k0 s0 tips s2 ) {
+	ks = toList ( k0 . split ( '／' ) )
+	if ks . size ( ) <= 1 return k0 end
+	c = firstEn ( s0 )
+	added = set ( [ ] )
+	ret = [ ]
+	met = tips . contains ( s2 )
+	if c != null
+		c = '' + c
+		ret . addAll ( ks . filter ( -> x {
+					return x . endsWith ( c )
+				} ) )
+		for ret k {
+			added . add ( k [ 0 .. -2 ] )
+		}
+	end
+	if met && ret . size ( ) > 1 return shortenRuby ( ret ) end
+	for ks k {
+		if endsWithAlphabet ( k )
+			k1 = k [ 0 .. -2 ]
+			if added . contains ( k1 ) continue end
+			added . add ( k1 ) ret . add ( k1 + '*' )
+		else
+			if added . contains ( k ) continue end
+			added . add ( k ) ret . add ( k )
+		end
+		if met && ret . size ( ) > 1 return shortenRuby ( ret ) end
+	}
+	if met return shortenRuby ( ret )
+	else
+		tips . add ( s2 )
+		return ret . join ( '/' )
+	end
+}
+func shortenRuby ( r ) {
+	if r . size ( ) > 1 return r [ 0 ] + '/..'
+	else return r [ 0 ]
+	end
+}
+func initJpChar {
+	if G . jpchar1 != null return 0 end
+	G . jpchar1 = { } G . jpchar2 = { }
+	fn = '/ram/jp_char'
+	txt = toList ( file ( fn ) . split ( '\n' ) ) . map ( -> x { return x . trim ( ) } )
+	cnt = txt . size ( ) / 3
+	for cnt i {
+		G . jpchar1 [ txt [ i * 3 ] ] = txt [ i * 3 + 2 ]
+		G . jpchar1 [ txt [ i * 3 + 1 ] ] = txt [ i * 3 + 2 ]
+		G . jpchar2 [ txt [ i * 3 ] [ 0 .. 1 ] ] = txt [ i * 3 + 2 ] [ 0 .. 1 ]
+		G . jpchar2 [ txt [ i * 3 + 1 ] [ 0 .. 1 ] ] = txt [ i * 3 + 2 ] [ 0 .. 1 ]
+	}
+	log ( 'init jp char %,d %,d' G . jpchar1 . size ( ) G . jpchar2 . size ( ) )
+}
+func firstEn ( k ) {
+	if k == null || k == '' return null end
+	if G . jpchar1 == null initJpChar ( ) end
+	return G . jpchar2 [ k [ 0 .. 1 ] ]
+}
+func endsWithAlphabet ( k ) {
+	c = k [ -2 .. -1 ] . toLowerCase ( ) . charAt ( 0 )
+	return c >= toChar ( 'a' ) && c <= toChar ( 'z' )
+}

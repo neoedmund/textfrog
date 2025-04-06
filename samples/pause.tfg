@@ -1,0 +1,70 @@
+#!/usr/bin/env textfrog
+/*
+pause and resume linux processes
+	like, if you pause/resume specified firefox tab you can find it's pid at about:processes
+
+*/
+include ( "lib.tfg" )
+libC ( )
+runnable resume ( args ) {
+	kills ( '-CONT' args )
+}
+runnable pause ( args ) {
+	kills ( '-STOP' args )
+}
+runnable kill ( args ) {
+	kills ( '' args )
+}
+runnable find ( args ) {
+	kills ( 'find' args )
+}
+function kills ( kind args ) {
+	if args . size ( ) == 0 then
+		log ( "param(and): key1 key2 key3 ..." )
+		return 0
+	end
+	mypid = "" + getpid ( )
+	log ( "my pid=%s find %s" mypid "" + args )
+	txt = exec ( "ps" '-eo' "pid,command" ) [ 0 ]
+	-- log ( txt )
+	lines = txt . split ( "\n" )
+	pids = [ ]
+	cnt = 0
+	for ( lines line ) {
+		line = line . trim ( )
+		if line . endsWith ( ']' ) continue end -- kernel proc?
+		cnt += 1
+		match = true
+		for ( args k ) {
+			if ! ( line . contains ( k ) ) then
+				match = false
+				break
+			end
+		}
+		killed = false
+		if match then
+			p1 = line . indexOf ( " " )
+			pid = line [ 0 .. p1 ]
+			if ! ( pid . equals ( mypid ) ) then
+				pids . add ( pid )
+				log ( "x " + line )
+				killed = true
+			end
+		end
+		if ! killed then
+			log ( line )
+		end
+	}
+	cnt2 = pids . size ( )
+	if cnt2 <= 0 then
+		log ( "no match in %,d proc" cnt )
+		return 0
+	end
+	if kind == 'find'
+		log ( "scanned %,d proc and found %,d: [%s]" cnt cnt2 pids . join ( ' ' ) )
+		return 0
+	end
+	if kind != '' pids . addAt ( 0 kind ) end
+	exec ( 'kill' pids )
+	log ( "scanned %,d proc and found %,d\n kill %s" cnt cnt2 pids . join ( ' ' ) )
+}

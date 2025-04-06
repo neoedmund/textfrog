@@ -1,0 +1,4 @@
+function inc1 ( ) {
+	log ( 'inc 1' )
+	return 0
+}

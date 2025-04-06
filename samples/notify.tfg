@@ -1,0 +1,20 @@
+
+runnable test {
+	notify ( '100' )
+	sleep ( 1000 )
+	notify ( '234' )
+	sleep ( 2000 )
+	G . notifyWindow . close ( )
+}
+func notify ( s ) {
+	if ( wnd = G . notifyWindow ) == null
+		cl = loadJars ( [ "notifier/dist/notifier.jar" ] )
+		wnd = Java ( 'neoe.notifier.TheWindow' cl )
+		-- log ( 'wnd=' + wnd )
+		G . notifyWindow = wnd
+		--  wnd . setTimeout ( 1000 ) // 1000 is default
+	end
+	wnd . update ( s )
+}
+
+

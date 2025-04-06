@@ -1,0 +1,23 @@
+#!/usr/bin/env textfrog
+/*
+tfg ffExtractImage 1.mkv 00:10 3 4
+param: <video-file> <start-time> <length-in-sec> <fps>
+not tested yet
+*/
+
+runnable main a {
+	fn = a [ 0 ]
+	ss = a [ 1 ]
+	t = a [ 2 ]
+	fps = a [ 3 ]
+	fn2 = FileObj ( fn ) . getName ( ) . replace ( '.' '_' )
+
+	wk = format ( '/ram/video/%s-%s-%s' fn2 ss . replace ( ':' '_' ) fps )
+	FileObj ( wk ) . mkdirs ( )
+	ret = execp ( wk 'ffmpeg' '-ss' ss '-t' t '-i' fn '-vf' 'fps=' + fps '%04d.jpg' )
+	log ( '%s' '' + ret )
+	if ret [ 2 ] == 0
+		log ( 'extracted to \n %s' wk )
+	end
+}
+

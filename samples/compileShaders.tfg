@@ -1,0 +1,31 @@
+#!/usr/bin/env textfrog
+include ( "util.tfg" )
+runnable main args {
+	src = args [ 0 ]
+	dest = args [ 1 ]
+	FileObj ( dest ) . mkdirs ( )
+	done = 0 skip = 0
+	filewalk src fn 5 {
+		if fn . endsWith ( '.vert' ) || fn . endsWith ( '.frag' )
+			fn2 = transPath ( fn src dest ) + '.spv'
+			// log ( fn2 )
+			f2 = FileObj ( fn2 )
+			if ( ! f2 . isFile ( ) ) || f2 . lastModified ( ) < FileObj ( fn ) . lastModified ( )
+				ret = exec ( 'bash' '-c' format ( 'glslc -o "%s" "%s"' fn2 fn ) )
+				if ret [ 2 ] != 0 error ( "glslc failed for [%s]:%s" fn ret ) end
+				done += 1
+			else skip += 1
+			end
+		end
+	}
+	log ( 'done/skip=%d/%d' done skip )
+}
+func transPath ( fn src dest ) {
+	s1 = FileObj ( fn ) . getAbsolutePath ( )
+	s2 = FileObj ( src ) . getAbsolutePath ( )
+	if ! s2 . endsWith ( '/' ) s2 = s2 + '/' end
+	if ! ( s1 . startsWith ( s2 ) ) error ( 'cannot trans path [%s] [%s]' s1 s2 ) end
+	if ! dest . endsWith ( '/' ) dest = dest + '/' end
+	return dest + s1 [ s2 . length ( ) .. ]
+}
+

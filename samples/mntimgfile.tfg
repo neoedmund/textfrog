@@ -1,0 +1,54 @@
+#!/usr/bin/env textfrog
+/* mount image file with multipied partition
+	use `fdisk -lu /path/disk.img` to find out the partitions and offset
+	use `mount -o loop,offset=xxxx /path/disk.img /mnt/disk.img.partition` to mount
+*/
+
+include ( 'util.tfg' )
+runnable main args {
+	wd = '/tmp'
+	imgfn = args [ 0 ]
+	offs = parse_fdisk ( checkBash ( wd 'fdisk -l ' + imgfn ) [ 0 ] )
+	fn = FileObj ( imgfn ) . getName ( )
+	ps = offs . size ( )
+	if ps <= 0 log ( 'not found partition in image file %s' imgfn ) return 1 end
+	failed = 0
+	for ps i {
+		target = format ( '/media/%s/p%d' fn i + 1 )
+		checkBash ( wd format ( 'mkdir -p %s' target ) )
+		ret = tryBash ( wd format ( 'sudo mount -o loop,offset=%s,sizelimit=%s %s %s'
+				offs [ i ] [ 0 ] offs [ i ] [ 1 ] imgfn target ) )
+		if ret [ 2 ] != 0 log ( 'p%d mount failed with %s' i + 1 '' + ret ) failed += 1
+		else
+			log ( 'p%d mount OK' i + 1 )
+		end
+	}
+	log ( 'mounted %d(%d failed) partitions in /media/%s' ps - failed failed fn )
+}
+
+func parse_fdisk ( txt ) {
+	/*
+Device                                         Start      End  Sectors  Size Type
+/ram/unpack/ArkOS_RG353V_v2.0_05042023.img1    16384    24575     8192    4M unknown
+/ram/unpack/ArkOS_RG353V_v2.0_05042023.img2    24576    32767     8192    4M unknown
+/ram/unpack/ArkOS_RG353V_v2.0_05042023.img3    32768   237567   204800  100M Microsoft basic data
+/ram/unpack/ArkOS_RG353V_v2.0_05042023.img4   237568 14983167 14745600    7G Microsoft basic data
+/ram/unpack/ArkOS_RG353V_v2.0_05042023.img5 14983168 15521791   538624  263M Microsoft basic data
+*/
+	offs = [ ]
+	at1 = false
+	for txt . split ( '\n' ) line i {
+		if line . startsWith ( 'Device ' ) at1 = true continue end
+		if at1
+			ts = spacedTokens ( line )
+			ts . ns ( )
+			start = toLong ( ts . ns ( ) )
+			stop = toLong ( ts . ns ( ) )
+			row = [ ]
+			row . add ( start * 512 ) . add ( ( stop - start + 1 ) * 512 )
+			offs . add ( row )
+		end
+	}
+	--	log ( '' + offs )
+	return offs
+}

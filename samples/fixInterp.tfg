@@ -1,0 +1,48 @@
+#!/usr/bin/env textfrog
+/*
+./fixInterp.tfg
+*/
+runnable main args {
+	dir = '/opt/lab/lab3/textfrog/samples'
+	if ! args . isEmpty ( ) dir = args [ 0 ] end
+	G . INTERP = '#!/usr/bin/env textfrog'
+	fixInterp ( dir )
+}
+func fixInterp ( dir ) {
+	cnt = 0 total = 0
+	filewalk dir fn 10 {
+		if ! fn . endsWith ( '.tfg' ) continue end
+		f = FileObj ( fn )
+		if ! f . isFile ( ) continue end
+		cnt += fixInterpOneTfg ( fn )
+		total += 1
+	}
+	log ( 'fixed %d/%d tfg' cnt total )
+}
+func fixInterpOneTfg ( fn ) {
+	txt = file ( fn )
+	p1 = txt . indexOf ( '\n' )
+	if p1 <= 0 return 0 end
+	L1 = txt [ 0 .. p1 ] . trim ( )
+	if L1 == INTERP log ( 'already %s' fn ) chmodx ( fn ) return 0 end
+	if L1 . startsWith ( '#!/' )
+		txt2 = INTERP + '\n' + txt [ p1 + 1 .. ]
+		save ( txt2 fn )
+		chmodx ( fn )
+		log ( 'fixed %s' fn ) return 1
+	else
+		b = txt . contains ( 'runnable ' )
+		if b
+			txt2 = INTERP + '\n' + txt
+			save ( txt2 fn ) chmodx ( fn )
+			log ( 'added %s' fn ) return 0
+		else
+			log ( 'not runnable %s' fn ) return 0
+		end
+	end
+	log ( 'bug?' )
+	return 0
+}
+func chmodx ( fn ) {
+	execp ( '.' 'chmod' '+x' fn )
+}

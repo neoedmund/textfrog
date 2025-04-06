@@ -1,0 +1,240 @@
+#!/usr/bin/env textfrog
+/* print system monitor info */
+include ( 'util.tfg' )
+include ( 'cpugovernor.tfg' )
+runnable function main ( ) {
+	G . logexec = false
+	doWork ( )
+}
+func doWork {
+	j = 0
+	for {
+		j = j + 1 if j > 1000 j = 0 tryGC ( ) end
+		s = report ( )
+		nolog ( s )
+		sleep ( 1500 )
+	}
+}
+function report ( ) {
+	sb = [ ]
+	parts = [ dateNeoe memory battery temper cpu net io ]
+	for ( parts part ) {
+		sb . add ( $part ( ) )
+	}
+	-- checkDev ( )
+	return sb . join ( " " )
+}
+func checkDev {
+	ret = tryBash ( '.' "ls -l /dev/input" )
+	if ret [ 0 ] . contains ( 'root' )
+		tryBash ( '.' 'sudo chown -R neoe:neoe /dev/input' )
+	end
+}
+G . bat = true
+
+function battery {
+	if G . bat == false return '' end
+	fn = '/sys/class/power_supply/BAT0/status'
+	fn2 = '/sys/class/power_supply/BAT0/capacity'
+	if ! FileObj ( fn ) . isFile ( ) G . bat = false return '' end
+	status = file ( fn ) . trim ( )
+	cap = toInt ( file ( fn2 ) . trim ( ) )
+	if cap < 10 && cap > 0 && status != 'Charging'
+		checkBashs ( '/tmp' 'sudo acpitool -s' )
+	end
+	if status == 'Unknown' status = 'bat' end
+	if status == 'Full' return status end
+	return format ( '%s(%s%%)' status cap )
+}
+function io ( ) {
+	if G . io == null
+		cl = loadJars ( [ ] . add ( G . systemEnv [ 'neoebuild_base' ] + "/lab0/linux/iotopJ/dist/iotopJ.jar" ) )
+		G . io = Java ( 'neoe.iotop.Stat' cl )
+	end
+	k = G . io . next ( )
+	if k == 'io:0K/0K' k = 'io:_' end
+	return k
+}
+function date ( ) {
+	return formatDate ( "yyyyMMdd E HH:mm" now ( ) )
+}
+function dateNeoe ( ) {
+	return formatDateNeoe ( )
+}
+arr0 = [ 0 0 0 0 ]
+function cpu ( ) {
+	ret = file ( "/proc/stat" )
+	f = finder ( ret )
+	f . find ( "cpu " )
+	line = f . readUntil ( "\n" )
+	alist = parseData ( "[" + line + "]" )
+	arr = alist [ 0 .. 4 ] // . map ( -> ( s ) { return s . toLong ( ) } )
+	a = arr [ 0 ] - arr0 [ 0 ]
+	b = arr [ 1 ] - arr0 [ 1 ]
+	c = arr [ 2 ] - arr0 [ 2 ]
+	d = arr [ 3 ] - arr0 [ 3 ]
+	t = a + b + c + d
+	G . arr0 = arr
+	u = 100 * ( a + b ) / t
+	s = 100 * ( c ) / t
+
+	if u == 0 && s == 0 return 'CPU_' end
+	if u + s < 20 cpuLow ( ) else cpuHigh ( ) end
+	return format ( "CPU u%ds%d" u s )
+}
+function temper ( ) {
+	--	if true return "skip_temper" end
+	ret = exec ( "/usr/bin/sensors" )
+	sensors = ret [ 0 ]
+	strs = [ ]
+	f = finder ( sensors )
+	gpu = [ ]
+	f . find ( "amdgpu" )
+	f . find ( "edge:" )
+	gpu . add ( d1 = f . readUntil ( "°C" ) . trim ( ) )
+	f . find ( "junction:" )
+	gpu . add ( f . readUntil ( "°C" ) . trim ( ) )
+	f . find ( "mem:" )
+	gpu . add ( f . readUntil ( "°C" ) . trim ( ) )
+	f . find ( "PPT:" )
+	s2 = ( f . readUntil ( "W" ) . trim ( ) )
+	s1 = ""
+	if s2 . isEmpty ( ) then
+		tmp1 = temp ( gpu )
+		if tmp1 == 0 || tmp1 == '0' -- no gpu info
+		else
+			s1 = format ( "GPU %s^" tmp1 )
+		end
+	else
+		s1 = format ( "GPU %s^%.0fW" temp ( gpu ) s2 . toFloat ( ) )
+	end
+	strs . add ( s1 )
+
+	f = finder ( sensors )
+	cpu = [ ]
+	f . find ( "k10temp" )
+	if f . finished ( ) // 
+		f = finder ( ret [ 0 ] )
+		f . find ( 'coretemp' )
+		loop {
+			f . find ( 'Core ' )
+			f . find ( ':' )
+			if f . finished ( ) break end
+			cpu . add ( f . readUntil ( "°C" ) . trim ( ) )
+		}
+	else
+		f . find ( "Tctl:" )
+		cpu . add ( f . readUntil ( "°C" ) . trim ( ) )
+		f . find ( "Tccd1:" )
+		cpu . add ( f . readUntil ( "°C" ) . trim ( ) )
+		f . find ( "Tccd2:" )
+		cpu . add ( f . readUntil ( "°C" ) . trim ( ) )
+	end
+	//log ( '' + cpu )
+	s1 = format ( "CPU %s^" temp ( cpu ) ) //℃
+	strs . add ( s1 )
+
+	//nvme
+	f = finder ( sensors )
+	k1 = 'nvme-pci-'
+	loop {
+		f . find ( k1 )
+		if ! f . finished ( )
+			part = f . readUntil ( '\n' ) . replace ( '0' , ' ' ) . trim ( )
+			f . find ( 'Composite:' )
+			temp = f . readUntil ( '°C' ) . trim ( )
+			if temp . startsWith ( '+' ) temp = temp [ 1 .. ] end
+			strs . add ( format ( 'nvme%s %.0f^' part temp . toFloat ( ) ) )
+		else
+			break
+		end
+	}
+	return strs . join ( "  " )
+}
+
+function temp ( tmp ) {
+	if tmp . size ( ) == 0 return 0 end
+	vs = tmp . map ( -> ( s ) {
+			if s . startsWith ( "+" ) then s = s . substring ( 1 ) end
+			if s . isEmpty ( ) then return 0.0 end
+			return s . toFloat ( )
+		} )
+
+	min = vs . min ( )
+	max = vs . max ( )
+	//log ( '%s %f %f' '' + vs min max )
+	if min == max || min <= 0 then
+		return format ( "%.0f" max )
+	else
+		//	return format ( "%.0f~%.0f" min max )
+		return format ( "%.0f" max )
+	end
+}
+
+function memory ( ) {
+	ret = exec ( "/usr/bin/free" )
+	f = finder ( ret [ 0 ] )
+	f . find ( "Mem:" )
+	line = f . readUntil ( "\n" )
+	alist = parseData ( "[" + line + "]" )
+	v = alist [ 1 ] // . toLong ( )
+	return format ( "Mem %.1fG" v / 1024.0 / 1024.0 )
+}
+
+net1 = { }
+
+function net ( ) {
+	ret = exec ( "/sbin/ifconfig" )
+	sb = [ ]
+	f = finder ( ret [ 0 ] )
+	cnt = 0
+	loop ( ) {
+		dev = f . readUntil ( ": flags=" )
+
+		p1 = dev . lastIndexOf ( '\n' )
+		if p1 >= 0 then
+			dev = dev . substring ( p1 + 1 ) . trim ( )
+		end
+		if dev . startsWith ( 'docker' ) continue end
+		if cnt >= 10 || f . finished ( ) then break end
+		sect1 = f . readUntil ( "RX packets" )
+		if ! ( sect1 . contains ( "inet" ) ) continue end
+		f . find ( "bytes" )
+		rx = f . readUntil ( "(" ) . trim ( ) . toLong ( )
+		f . find ( "TX packets" )
+		f . find ( "bytes" )
+		tx = f . readUntil ( "(" ) . trim ( ) . toLong ( )
+		net0 = net1 [ cnt ]
+		if net0 == null then
+			G . net1 [ cnt ] = ( net0 = [ 0 0 ] )
+		end
+		cnt = cnt + 1
+		v1 = rx - net0 [ 0 ]
+		v2 = tx - net0 [ 1 ]
+		if v1 >= 10000
+			v1 = shortNum ( v1 )
+		end
+		if v2 >= 10000
+			v2 = shortNum ( v2 )
+		end
+		s = 0
+		if v1 == 0 && v2 == 0
+			s = format ( "%s:_" dev )
+		else
+			s = format ( "%s:%s/%s" dev v1 v2 )
+		end
+		net0 [ 0 ] = rx
+		net0 [ 1 ] = tx
+		if sb . size ( ) > 0 then sb . add ( " " ) end
+		sb . add ( s )
+	}
+	return sb . join ( "" )
+}
+function shortNum ( v ) {
+	M = 1024 * 1024
+	if v > M v = ( v / M ) + "M"
+	elseif v > 1024 v = ( v / 1024 ) + "K"
+	end
+	return v
+}
+

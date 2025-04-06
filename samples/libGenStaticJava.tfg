@@ -1,0 +1,122 @@
+#!/usr/bin/env textfrog
+include ( "lib.tfg" )
+
+runnable function main ( ) {
+	libzstd ( )
+	//consts headerFuncTypeMap structs
+	genLibSource ( "zstd" )
+	genStructs ( )
+}
+
+private function genLibSource ( libname ) {
+	sb = [ ]
+	sb . add ( format ( `public class lib%s {
+	public static final String LIBNAME="%s";` libname libname ) )
+	m = G [ "headerFuncTypeMap" ] [ libname ]
+	//	log(m)
+	genConsts ( sb )
+	genFuncs ( sb m )
+	sb . add ( "}" )
+	save ( sb . join ( "\n" ) format ( "/ram/gen/lib%s.java" libname ) )
+}
+private function genConsts ( sb ) {
+	m = G [ "consts" ]
+	for ( m key value ) {
+		n = tryNumber ( value )
+		if n != null then
+			sb . add ( format ( "public static final int %s=0x%x;" key n ) )
+		end
+	}
+}
+
+private function genFuncs ( sb m ) {
+	for ( m key value ) {
+		ps = genParams ( value )
+		ret = switch "" + value [ 0 ] {
+			'v' -> { yield [ "" void ] }
+			"i" -> { yield [ " return (int) " int ] }
+			-> { yield [ return long ] }
+		}
+		sb . add ( format (
+				'public static %s %s (%s) throws Exception {' ret [ 1 ] key ps [ 0 ] ) )
+		sb . add ( format (
+				'%s call(LIBNAME, "%s", "%s" %s);' ret [ 0 ] key value ps [ 1 ] ) )
+		sb . add ( '}' )
+	}
+}
+private function genParams ( v ) {
+	s1 = [ ]
+	s2 = [ ]
+	s2 . add ( "" )
+	size = v . length ( )
+	i = 0
+	x = 1
+	loop ( ) {
+		i = i + 1
+		if i >= size then break end
+		ret = switch "" + v [ i ] {
+			"i" -> { a = [ ] a . add ( " int p" + x ) . add ( "p" + x ) x = x + 1 yield a }
+			-> { a = [ ] a . add ( " long p" + x ) . add ( "p" + x ) x = x + 1 yield a }
+		}
+		s1 . add ( ret [ 0 ] )
+		s2 . add ( ret [ 1 ] )
+	}
+	return array ( s1 . join ( ", " ) s2 . join ( ", " ) )
+}
+private function genStructs ( ) {
+	m = G [ "struct" ]
+	for ( m k v ) {
+		genStructSrc ( k v )
+	}
+}
+private function getStrMembers ( data ) {
+	s1 = [ ]
+	s2 = [ ]
+	for ( data [ "members" ] r ) {
+		type = r [ 2 ]
+		name = r [ 0 ]
+		if [ * void int long byte short char ] . contains ( type ) then continue end
+		//	public Struct_ZSTD_compressionParameters cParams;
+		s1 . add ( format ( "public Struct_%s %s;"
+				type name r [ 1 ]
+			) )
+		//cParams=new Struct_ZSTD_compressionParameters(bb.slice(0,28));	
+		s2 . add ( format ( "%s=new Struct_%s(bb.slice(%s,%s));"
+				name type r [ 1 ] r [ 3 ] . toInt ( ) * r [ 4 ] . toInt ( )
+			) )
+	}
+	return array ( s1 . join ( "\n" ) s2 . join ( "\n" ) )
+}
+private function genStructSrc ( name data ) {
+	smem = getStrMembers ( data ) ;
+	sb = [ ]
+	sb . add ( format ( `package neoe.ffi;\nimport java.nio.ByteBuffer;
+	public class Struct_%s extends Struct {
+
+	%s
+		public Struct_%s(){
+				super(%s);initDBB();
+				%s
+		}
+		public Struct_%s(ByteBuffer bb) {
+			super(%s);this.bb=bb;
+			%s
+		}
+	` name smem [ 0 ] name data [ "size" ] smem [ 1 ] name data [ "size" ] smem [ 1 ] ) )
+	for ( data [ "members" ] r ) {
+		type = r [ 2 ]
+		if [ * void int long byte short char ] . contains ( type ) then
+		else continue
+		end
+		if type == "*" then type = "long" end
+		fix = ""
+		if r [ 4 ] . toInt ( ) != 1 then fix = format ( "/*fixme: cnt=%s*/" r [ 4 ] ) end
+		type2 = type [ 0 .. 1 ] . toUpperCase ( ) + type [ 1 .. ]
+		sb . add ( format ( ` public %s %s() {bb.position(%s); return bb.get%s();%s}
+	 public void %s(%s v) {bb.position(%s); bb.put%s(v);%s}
+	` type r [ 0 ] r [ 1 ] type2 fix r [ 0 ] type r [ 1 ] type2 fix
+			) )
+	}
+	sb . add ( "}" )
+	save ( sb . join ( "\n" ) format ( "/ram/gen/Struct_%s.java" name ) )
+}

@@ -1,0 +1,906 @@
+#!/usr/bin/env textfrog
+include ( "lib.tfg" )
+
+//libC()
+libVulkan ( )
+libSDL2 ( )
+//t1=thread ( libSDL2 ( ) )
+//t2=thread ( libVulkan ( ) )
+//loadStruct ( "SDL2.struct" )
+
+runnable function main ( args ) {
+	--	t1.join()
+	--	t2.join()
+	-- log ( "parsed headers %,d" G [ "included" ] . size ( ) )
+	if ! ( nsdl_init ( ) ) then return 1 end
+	nvk_init ( )
+	--	log ( "program end, but TODO" )
+	--sc = nvk_crreateSwapchain(0)
+	initAfterDeviceOK ( )
+	//	logs ( "[p1]here1" )
+	swapchain = createSwapchain ( 0 )
+
+	log ( "swapchain=%x" swapchain )
+	createImageView ( swapchain swapchainImages swapchainImageViews )
+	initAfterSwapchain ( )
+	initCommandBuffers ( )
+	imgui_init ( )
+	uploadData ( )
+
+	doLoop ( )
+}
+// 
+// function doLoop ( ) {
+// 	SDL_StartTextInput ( ) ;
+// 	//	SDL_ShowCursor( SDL_DISABLE ) ;
+// 	SDL_Event sdlEvent ;
+// 	logs ( "sdl loop\n" ) ;
+// 	bool fQuit = false ;
+// 	while ( ! fQuit ) {
+// 		while ( SDL_PollEvent ( & sdlEvent ) != 0 ) {
+// 			if ( sdlEvent . type == SDL_QUIT ) {
+// 				fQuit = true ;
+// 			} else if ( sdlEvent . type == SDL_KEYDOWN ) {
+// 				if ( sdlEvent . key . keysym . sym == SDLK_ESCAPE ||
+// 					sdlEvent . key . keysym . sym == SDLK_q ) {
+// 					fQuit = true ;
+// 				}
+// 				if ( sdlEvent . key . keysym . sym == SDLK_c ) {
+// 				}
+// 			}
+// 			ImGui_ImplSDL2_ProcessEvent ( & sdlEvent ) ;
+// 		}
+// 		drawFrame ( ) ;
+// 	}
+// 	SDL_StopTextInput ( ) ;
+// }
+// 
+// function uploadData ( ) {
+// 	// Use any command queue
+// 	VkCommandPool command_pool = nApp :: commandPool ;
+// 	if ( nApp :: commandBuffers == 0 ) error ( "bug:commandBuffers not inited\n" ) ;
+// 
+// 	VkCommandBuffer command_buffer = nApp :: commandBuffers [ 0 ] ;
+// 
+// 	checkResult ( vkResetCommandPool ( nVK :: device , command_pool , 0 ) ) ;
+// 	VkCommandBufferBeginInfo begin_info = { } ;
+// 	begin_info . sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO ;
+// 	begin_info . flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT ;
+// 	checkResult ( vkBeginCommandBuffer ( command_buffer , & begin_info ) ) ;
+// 	// using command buffer to upload goes here
+// 	// Upload Fonts
+// 	ImGui_ImplVulkan_CreateFontsTexture ( command_buffer ) ;
+// 
+// 	DDS :: uploadADDS ( command_buffer ) ;
+// 
+// 	VkSubmitInfo end_info = { } ;
+// 	end_info . sType = VK_STRUCTURE_TYPE_SUBMIT_INFO ;
+// 	end_info . commandBufferCount = 1 ;
+// 	end_info . pCommandBuffers = & command_buffer ;
+// 	checkResult ( vkEndCommandBuffer ( command_buffer ) ) ;
+// 	checkResult ( vkQueueSubmit ( nVK :: queue , 1 , & end_info , VK_NULL_HANDLE ) ) ;
+// 	checkResult ( vkDeviceWaitIdle ( nVK :: device ) ) ;
+// 
+// 	logs ( "uploaded, finishing" ) ;
+// 	// finishing
+// 	ImGui_ImplVulkan_DestroyFontUploadObjects ( ) ;
+// 
+// 	DDS :: uploadDDS_after ( ) ;
+// }
+// function imgui_init ( ) { // Setup Dear ImGui context
+// 	IMGUI_CHECKVERSION ( ) ;
+// 	ImGui :: CreateContext ( ) ;
+// 	ImGuiIO & io = ImGui :: GetIO ( ) ;
+// 	( void ) io ;
+// 	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+// 	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+// 	// Setup Dear ImGui style
+// 	ImGui :: StyleColorsDark ( ) ;
+// 	//ImGui::StyleColorsClassic();
+// 	// Setup Platform/Renderer backends
+// 	ImGui_ImplSDL2_InitForVulkan ( nSDL :: sdlWindow ) ;
+// 	ImGui_ImplVulkan_InitInfo init_info = { } ;
+// 	init_info . Instance = nVK :: vulkanInstance ;
+// 	init_info . PhysicalDevice = nVK :: phyDev ;
+// 	init_info . Device = nVK :: device ;
+// 	init_info . QueueFamily = nVK :: queueFamilyIndexGfx ;
+// 	init_info . Queue = nVK :: queue ;
+// 	init_info . PipelineCache = 0 ; //g_PipelineCache ;
+// 	init_info . DescriptorPool = nVK :: descriptorPool ;
+// 	init_info . Subpass = 0 ;
+// 	init_info . MinImageCount = nVK :: myImageCnt ;
+// 	init_info . ImageCount = nVK :: myImageCnt ;
+// 	init_info . MSAASamples = VK_SAMPLE_COUNT_1_BIT ;
+// 	init_info . Allocator = 0 ; //g_Allocator ;
+// 	init_info . CheckVkResultFn = check_vk_result ;
+// 	ImGui_ImplVulkan_Init ( & init_info , nApp :: renderPass ) ;
+// 
+// 	// Load Fonts
+// 	// - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
+// 	// - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
+// 	// - If the file cannot be loaded, the function will return NULL. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
+// 	// - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
+// 	// - Read 'docs/FONTS.md' for more instructions and details.
+// 	// - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
+// 	//io.Fonts->AddFontDefault();
+// 	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
+// 	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
+// 	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
+// 	ImFontConfig config ;
+// 	config . MergeMode = true ;
+// 	io . Fonts -> AddFontFromFileTTF ( "/usr/share/fonts/truetype/bar/monospaced/SourceCodePro-Medium.otf" , 16.0f ) ;
+// 	io . Fonts -> AddFontFromFileTTF ( "/home/neoe/oss/xiaolishu.ttf" , 16.0f , & config , io . Fonts -> GetGlyphRangesChineseFull ( ) ) ;
+// 	io . Fonts -> AddFontFromFileTTF ( "/usr/share/fonts/truetype/bar/SourceHanSans-Regular.ttc" , 16.0f , & config , io . Fonts -> GetGlyphRangesJapanese ( ) ) ;
+// 	//ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
+// 	//IM_ASSERT(font != NULL);
+// }
+// 
+// function initCommandBuffers ( ) {
+// 	const int imageCount = nVK :: myImageCnt ;
+// 
+// 	if ( commandBuffers == 0 ) {
+// 		commandBuffers = new VkCommandBuffer [ imageCount ] ;
+// 
+// 		VkCommandBufferAllocateInfo allocInfo = { } ;
+// 		allocInfo . sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO ;
+// 		allocInfo . commandPool = commandPool ;
+// 		allocInfo . level = VK_COMMAND_BUFFER_LEVEL_PRIMARY ;
+// 		allocInfo . commandBufferCount = imageCount ;
+// 		checkResult ( vkAllocateCommandBuffers ( device , & allocInfo , commandBuffers ) ) ;
+// 		logs ( "alloc commandbuffers %d" , imageCount ) ;
+// 	} else {
+// 		// for ( int i = 0 ; i < imageCount ; i ++ ) {
+// 		//}
+// 		vkResetCommandPool ( device , commandPool , 1 ) ;
+// 		logs ( "reset commandPool" ) ;
+// 	}
+// }
+// 
+// function initAfterSwapchain ( ) {
+// 	initSyncer ( ) ;
+// 	VkAttachmentDescription colorAttachment = { } ;
+// 	colorAttachment . format = surfaceFormat . format ;
+// 	colorAttachment . samples = VK_SAMPLE_COUNT_1_BIT ;
+// 	colorAttachment . loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR ;
+// 	colorAttachment . storeOp = VK_ATTACHMENT_STORE_OP_STORE ;
+// 	colorAttachment . stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE ;
+// 	colorAttachment . stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE ;
+// 	colorAttachment . initialLayout = VK_IMAGE_LAYOUT_UNDEFINED ;
+// 	colorAttachment . finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR ;
+// 
+// 	VkAttachmentReference colorAttachmentRef = { } ;
+// 	colorAttachmentRef . attachment = 0 ;
+// 	colorAttachmentRef . layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL ;
+// 
+// 	VkSubpassDescription subpass = { } ;
+// 	subpass . pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS ;
+// 	subpass . colorAttachmentCount = 1 ;
+// 	subpass . pColorAttachments = & colorAttachmentRef ;
+// 	//	subpass . pDepthStencilAttachment = & depthAttachmentRef ;
+// 	VkSubpassDependency dependency = { } ;
+// 	dependency . srcSubpass = VK_SUBPASS_EXTERNAL ;
+// 	dependency . dstSubpass = 0 ;
+// 	dependency . srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ;
+// 	dependency . srcAccessMask = 0 ;
+// 	dependency . dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ;
+// 	dependency . dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+// 	VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT ;
+// 
+// 	VkRenderPassCreateInfo renderPassInfo = { } ;
+// 	renderPassInfo . sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO ;
+// 	renderPassInfo . attachmentCount = 1 ;
+// 	renderPassInfo . pAttachments = & colorAttachment ;
+// 	renderPassInfo . subpassCount = 1 ;
+// 	renderPassInfo . pSubpasses = & subpass ;
+// 	renderPassInfo . dependencyCount = 1 ;
+// 	renderPassInfo . pDependencies = & dependency ;
+// 
+// 	VkRenderPass renderPassToFree = renderPass ;
+// 
+// 	checkResult (
+// 		vkCreateRenderPass ( nVK :: device , & renderPassInfo , NULL , & renderPass ) ) ;
+// 	checkHandle ( renderPass ) ;
+// 
+// 	createShader ( ) ;
+// 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = { } ;
+// 	vertexInputInfo . sType =
+// 	VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO ;
+// 
+// 	VkVertexInputBindingDescription bindingDescription = { } ;
+// 	bindingDescription . binding = 0 ;
+// 	bindingDescription . stride = sizeof ( struct Vertex ) ;
+// 	bindingDescription . inputRate = VK_VERTEX_INPUT_RATE_VERTEX ;
+// 
+// 	VkVertexInputAttributeDescription attributeDescriptions [ 2 ] = { { } , { } } ;
+// 	attributeDescriptions [ 0 ] . binding = 0 ;
+// 	attributeDescriptions [ 0 ] . location = 0 ;
+// 	attributeDescriptions [ 0 ] . format = VK_FORMAT_R32G32_SFLOAT ;
+// 	attributeDescriptions [ 0 ] . offset = 0 ;
+// 	attributeDescriptions [ 1 ] . binding = 0 ;
+// 	attributeDescriptions [ 1 ] . location = 1 ;
+// 	attributeDescriptions [ 1 ] . format = VK_FORMAT_R32G32B32_SFLOAT ;
+// 	attributeDescriptions [ 1 ] . offset = 8 ;
+// 
+// 	vertexInputInfo . vertexBindingDescriptionCount = 1 ;
+// 	vertexInputInfo . vertexAttributeDescriptionCount = 2 ;
+// 	vertexInputInfo . pVertexBindingDescriptions = & bindingDescription ;
+// 	vertexInputInfo . pVertexAttributeDescriptions = attributeDescriptions ;
+// 
+// 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = { } ;
+// 	inputAssembly . sType =
+// 	VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO ;
+// 	inputAssembly . topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST ;
+// 	inputAssembly . primitiveRestartEnable = VK_FALSE ;
+// 
+// 	uint32_t width = nVK :: surfCap . currentExtent . width ;
+// 	uint32_t height = nVK :: surfCap . currentExtent . height ;
+// 	VkViewport viewport = { } ;
+// 	viewport . x = 0.0f ;
+// 	viewport . y = 0.0f ;
+// 	viewport . width = ( float ) width ;
+// 	viewport . height = ( float ) height ;
+// 	viewport . minDepth = 0.0f ;
+// 	viewport . maxDepth = 1.0f ;
+// 
+// 	VkRect2D scissor = { { 0 , 0 } , { width , height } } ;
+// 
+// 	VkPipelineViewportStateCreateInfo viewportState = { } ;
+// 	viewportState . sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO ;
+// 	viewportState . viewportCount = 1 ;
+// 	viewportState . pViewports = & viewport ;
+// 	viewportState . scissorCount = 1 ;
+// 	viewportState . pScissors = & scissor ;
+// 
+// 	VkPipelineRasterizationStateCreateInfo rasterizer = { } ;
+// 	rasterizer . sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO ;
+// 	rasterizer . depthClampEnable = VK_FALSE ;
+// 	rasterizer . rasterizerDiscardEnable = VK_FALSE ;
+// 	rasterizer . polygonMode = VK_POLYGON_MODE_FILL ;
+// 	rasterizer . lineWidth = 1.0f ;
+// 	rasterizer . cullMode = VK_CULL_MODE_BACK_BIT ;
+// 	rasterizer . frontFace = VK_FRONT_FACE_CLOCKWISE ;
+// 	rasterizer . depthBiasEnable = VK_FALSE ;
+// 
+// 	VkPipelineMultisampleStateCreateInfo multisampling = { } ;
+// 	multisampling . sType =
+// 	VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO ;
+// 	multisampling . sampleShadingEnable = VK_FALSE ;
+// 	multisampling . rasterizationSamples = VK_SAMPLE_COUNT_1_BIT ;
+// 
+// 	VkPipelineDepthStencilStateCreateInfo depthStencil = { } ;
+// 	depthStencil . sType =
+// 	VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO ;
+// 	depthStencil . depthTestEnable = VK_TRUE ;
+// 	depthStencil . depthWriteEnable = VK_TRUE ;
+// 	depthStencil . depthCompareOp = VK_COMPARE_OP_LESS ;
+// 	depthStencil . depthBoundsTestEnable = VK_FALSE ;
+// 	depthStencil . stencilTestEnable = VK_FALSE ;
+// 
+// 	VkPipelineColorBlendAttachmentState colorBlendAttachment = { } ;
+// 	colorBlendAttachment . colorWriteMask =
+// 	VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+// 	VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT ;
+// 	colorBlendAttachment . blendEnable = VK_FALSE ;
+// 
+// 	VkPipelineColorBlendStateCreateInfo colorBlending = { } ;
+// 	colorBlending . sType =
+// 	VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO ;
+// 	colorBlending . logicOpEnable = VK_FALSE ;
+// 	colorBlending . logicOp = VK_LOGIC_OP_COPY ;
+// 	colorBlending . attachmentCount = 1 ;
+// 	colorBlending . pAttachments = & colorBlendAttachment ;
+// 	colorBlending . blendConstants [ 0 ] = 0.0f ;
+// 	colorBlending . blendConstants [ 1 ] = 0.0f ;
+// 	colorBlending . blendConstants [ 2 ] = 0.0f ;
+// 	colorBlending . blendConstants [ 3 ] = 0.0f ;
+// 
+// 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = { } ;
+// 	pipelineLayoutInfo . sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO ;
+// 	pipelineLayoutInfo . setLayoutCount = 0 ;
+// 	pipelineLayoutInfo . pushConstantRangeCount = 0 ;
+// 
+// 	VkPipelineLayout pipelineLayoutToFree = pipelineLayout ;
+// 
+// 	checkResult ( vkCreatePipelineLayout ( nVK :: device , & pipelineLayoutInfo , NULL ,
+// 			& pipelineLayout ) ) ;
+// 	checkHandle ( pipelineLayout ) ;
+// 
+// 	VkGraphicsPipelineCreateInfo pipelineInfo = { } ;
+// 	pipelineInfo . sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO ;
+// 	pipelineInfo . stageCount = 2 ;
+// 	pipelineInfo . pStages = shaderStages ;
+// 	pipelineInfo . pVertexInputState = & vertexInputInfo ;
+// 	pipelineInfo . pInputAssemblyState = & inputAssembly ;
+// 	pipelineInfo . pViewportState = & viewportState ;
+// 	pipelineInfo . pRasterizationState = & rasterizer ;
+// 	pipelineInfo . pMultisampleState = & multisampling ;
+// 	pipelineInfo . pDepthStencilState = & depthStencil ;
+// 	pipelineInfo . pColorBlendState = & colorBlending ;
+// 	pipelineInfo . layout = pipelineLayout ;
+// 	pipelineInfo . renderPass = renderPass ;
+// 	pipelineInfo . subpass = 0 ;
+// 	pipelineInfo . basePipelineHandle = VK_NULL_HANDLE ;
+// 	VkPipeline graphicsPipelineToFree = graphicsPipeline ;
+// 	checkResult ( vkCreateGraphicsPipelines (
+// 			nVK :: device , VK_NULL_HANDLE , 1 , & pipelineInfo , NULL , & graphicsPipeline ) ) ;
+// 
+// 	//	vkDestroyShaderModule ( nVK :: device , fragShaderModule , NULL ) ;
+// 	//	vkDestroyShaderModule ( nVK :: device , vertShaderModule , NULL ) ;
+// 	int imageCount = nVK :: myImageCnt ;
+// 	logs ( "[cp1]framebuffers" ) ;
+// 	if ( framebuffers != 0 ) {
+// 		logs ( "free framebuffers" ) ;
+// 		for ( int i = 0 ; i < imageCount ; i ++ ) {
+// 			vkDestroyFramebuffer ( nVK :: device , framebuffers [ i ] , 0 ) ;
+// 		}
+// 		if ( graphicsPipelineToFree != 0 ) {
+// 			logs ( "free graphicsPipeline" ) ;
+// 			vkDestroyPipeline ( nVK :: device , graphicsPipelineToFree , 0 ) ;
+// 		}
+// 		if ( pipelineLayoutToFree != 0 ) {
+// 			logs ( "free pipelineLayout" ) ;
+// 			vkDestroyPipelineLayout ( nVK :: device , pipelineLayoutToFree , 0 ) ;
+// 		}
+// 		if ( renderPassToFree != 0 ) {
+// 			logs ( "free renderPass" ) ;
+// 			vkDestroyRenderPass ( nVK :: device , renderPassToFree , 0 ) ;
+// 		}
+// 	} else {
+// 		framebuffers = new VkFramebuffer [ imageCount ] ;
+// 	}
+// 	for ( int i = 0 ; i < imageCount ; i ++ ) {
+// 		VkImageView attachments [ ] = { swapchainImageViews [ i ] } ;
+// 		VkFramebufferCreateInfo framebufferInfo = { } ;
+// 		framebufferInfo . sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO ;
+// 		framebufferInfo . renderPass = renderPass ;
+// 		framebufferInfo . attachmentCount = 1 ;
+// 		framebufferInfo . pAttachments = attachments ;
+// 		framebufferInfo . width = width ;
+// 		framebufferInfo . height = height ;
+// 		framebufferInfo . layers = 1 ;
+// 		checkResult ( vkCreateFramebuffer ( nVK :: device , & framebufferInfo , NULL ,
+// 				& framebuffers [ i ] ) ) ;
+// 	}
+// 	logs ( "framebuffers created" ) ;
+// }
+// function createImageView ( VkSwapchainKHR swapchain , VkImage * * out_swapchainImages ,
+// 	VkImageView * * out_swapchainImageViews ) {
+// 	uint32_t imageCount ;
+// 
+// 	checkResult (
+// 		vkGetSwapchainImagesKHR ( nVK :: device , swapchain , & imageCount , NULL ) ) ;
+// 	logs ( "imageCount=%d\n" , imageCount ) ;
+// 
+// 	if ( nVK :: myImageCnt != imageCount ) {
+// 		logs ( "warn: image count expected %d got %d, fixed" , nVK :: myImageCnt ,
+// 			imageCount ) ;
+// 		nVK :: myImageCnt = imageCount ;
+// 	}
+// 
+// 	if ( * out_swapchainImageViews != 0 ) { // release
+// 		logs ( "free %d ImageViews" , imageCount ) ;
+// 		for ( int i = 0 ; i < imageCount ; i ++ ) {
+// 			vkDestroyImageView ( nVK :: device , ( * out_swapchainImageViews ) [ i ] , 0 ) ;
+// 			// VUID-vkDestroyImage-image-parameter:		vkDestroyImage ( nVK ::
+// 			// device , ( * out_swapchainImages ) [ i ] , 0 ) ;
+// 		}
+// 	} else {
+// 		* out_swapchainImages = new VkImage [ imageCount ] ;
+// 		* out_swapchainImageViews = new VkImageView [ imageCount ] ;
+// 	}
+// 
+// 	//	VkImage * swapchainImages = * out_swapchainImages ;
+// 	checkResult ( vkGetSwapchainImagesKHR ( nVK :: device , swapchain , & imageCount ,
+// 			* out_swapchainImages ) ) ;
+// 
+// 	//		VkImageView * swapchainImageViews = * out_swapchainImageViews ;
+// 	for ( int i = 0 ; i < imageCount ; i ++ ) {
+// 		VkImageViewCreateInfo createInfo = { } ;
+// 		createInfo . sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO ;
+// 		createInfo . image = ( * out_swapchainImages ) [ i ] ;
+// 		createInfo . viewType = VK_IMAGE_VIEW_TYPE_2D ;
+// 		createInfo . format = nVK :: surfaceFormat . format ;
+// 		createInfo . components . r = VK_COMPONENT_SWIZZLE_IDENTITY ;
+// 		createInfo . components . g = VK_COMPONENT_SWIZZLE_IDENTITY ;
+// 		createInfo . components . b = VK_COMPONENT_SWIZZLE_IDENTITY ;
+// 		createInfo . components . a = VK_COMPONENT_SWIZZLE_IDENTITY ;
+// 		createInfo . subresourceRange . aspectMask = VK_IMAGE_ASPECT_COLOR_BIT ;
+// 		createInfo . subresourceRange . baseMipLevel = 0 ;
+// 		createInfo . subresourceRange . levelCount = 1 ;
+// 		createInfo . subresourceRange . baseArrayLayer = 0 ;
+// 		createInfo . subresourceRange . layerCount = 1 ;
+// 		checkResult ( vkCreateImageView ( nVK :: device , & createInfo , NULL ,
+// 				& ( ( * out_swapchainImageViews ) [ i ] ) ) ) ;
+// 	}
+// 	//* out_swapchainImages = swapchainImages ;
+// 	//* out_swapchainImageViews = swapchainImageViews ;
+// 	logs ( "swapchainImages=%p, swapchainImageViews=%p, cnt:%d\n" ,
+// 		* out_swapchainImages , * out_swapchainImageViews , imageCount ) ;
+// }
+// function getSurfCap ( ) {
+// 	VkSurfaceCapabilitiesKHR surfCapabilities ;
+// 	# define sc surfCapabilities
+// 	checkResult ( vkGetPhysicalDeviceSurfaceCapabilitiesKHR (
+// 			nVK :: phyDev , nVK :: surface , & surfCapabilities ) ) ;
+// 	char buf [ buf1000 ] ;
+// 	char buf2 [ buf1000 ] ;
+// 	char buf3 [ buf1000 ] ;
+// 	logs ( "surfCapabilities{\n minImageCount=%d, "
+// 		"maxImageCount=%d,maxImageArrayLayers=%d,\n"
+// 		" current(%d,%d),min(%d,%d),max(%d,%d),\n"
+// 		" supportedTransforms=%s, currentTransform=%s,"
+// 		" supportedCompositeAlpha=%X.\n supportedUsageFlags=%s(%X) }\n" ,
+// 		sc . minImageCount , sc . maxImageCount , sc . maxImageArrayLayers ,
+// 		sc . currentExtent . width , sc . currentExtent . height , sc . minImageExtent . width ,
+// 		sc . minImageExtent . height , sc . maxImageExtent . width ,
+// 		sc . maxImageExtent . height ,
+// 		getVK_SURFACE_TRANSFORM_name ( sc . supportedTransforms , buf , buf1000 ) ,
+// 		getVK_SURFACE_TRANSFORM_name ( sc . currentTransform , buf2 , buf1000 ) ,
+// 		sc . supportedCompositeAlpha ,
+// 		getVK_IMAGE_USAGE_name ( sc . supportedUsageFlags , buf3 , buf1000 ) ,
+// 		sc . supportedUsageFlags ) ;
+// 	# undef sc
+// 	nVK :: surfCap = surfCapabilities ;
+// }
+// function /* VkSwapchainKHR */ createSwapchain ( /*VkSwapchainKHR*/ oldSwapchain ) {
+// 	getSurfCap ( ) ;
+// 	if ( ( nVK :: surfCap . supportedCompositeAlpha &
+// 			VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR ) == 0 )
+// 	error ( "oops, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR not supported" ) ;
+// 	createInfo = struct ( VkSwapchainCreateInfoKHR )
+// 	createInfo . sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR ;
+// 	createInfo . surface = nVK :: surface ;
+// 	createInfo . minImageCount = myImageCnt ; // triple buffering
+// 	// https://github.com/KhronosGroup/Vulkan-Samples/blob/master/samples/performance/swapchain_images/swapchain_images_tutorial.md
+// 	createInfo . imageFormat = nVK :: surfaceFormat . format ;
+// 	createInfo . imageColorSpace = nVK :: surfaceFormat . colorSpace ;
+// 	createInfo . imageExtent = nVK :: surfCap . currentExtent ;
+// 	createInfo . imageArrayLayers = 1 ;
+// 	createInfo . imageUsage =
+// 	VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT ;
+// 	createInfo . imageSharingMode = VK_SHARING_MODE_EXCLUSIVE ;
+// 	createInfo . preTransform = nVK :: surfCap . currentTransform ;
+// 	createInfo . compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR ;
+// 	createInfo . presentMode = presentMode ;
+// 	createInfo . clipped = VK_TRUE ;
+// 	createInfo . oldSwapchain = oldSwapchain ;
+// 	VkSwapchainKHR swapchain ;
+// 	checkResult (
+// 		vkCreateSwapchainKHR ( nVK :: device , & createInfo , NULL , & swapchain ) ) ;
+// 	checkHandle ( swapchain ) ;
+// 	if ( oldSwapchain != 0 ) {
+// 		logs ( "free oldSwapchain" ) ;
+// 		vkDestroySwapchainKHR ( nVK :: device , oldSwapchain , 0 ) ;
+// 	}
+// 	return swapchain ;
+// }
+function initAfterDeviceOK ( ) {
+	VkCommandPoolCreateInfo poolInfo = struct ( VkCommandPoolCreateInfo )
+	poolInfo . sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
+	poolInfo . flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+	poolInfo . queueFamilyIndex = G [ "queueFamilyIndexGfx" ]
+	checkResult ( vkCreateCommandPool ( device poolInfo 0 commandPool ) pos ( ) )
+	checkValue ( commandPool pos ( ) )
+
+	initData ( )
+}
+// private function initData ( ) {
+// 	uint32_t size_vertex = sizeof ( data_vertices ) ;
+// 	uint32_t size_index = sizeof ( data_indices ) ;
+// 	indexDataCnt = size_index / sizeof ( data_indices [ 0 ] ) ;
+// 	logs ( "indexDataCnt=%d" , indexDataCnt ) ;
+// 	// fix this when has many data
+// 	uploadBuffer ( size_vertex , data_vertices ,
+// 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+// 		VK_BUFFER_USAGE_TRANSFER_DST_BIT ,
+// 		& vertexBuffer ) ;
+// 	uploadBuffer ( size_index , data_indices ,
+// 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+// 		VK_BUFFER_USAGE_TRANSFER_DST_BIT ,
+// 		& indexBuffer ) ;
+// }
+function nsdl_init ( ) {
+	log ( "sdl init" )
+
+	fullscreen = false
+	if SDL_Init ( SDL_INIT_VIDEO | SDL_INIT_TIMER ) < 0 then
+		log ( "SDL could not initialize! SDL Error: %s" SDL_GetError ( ) )
+		return false
+	end
+	nWindowPosX = 0
+	nWindowPosY = 0
+	unWindowFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_VULKAN
+	if ( fullscreen ) then
+		unWindowFlags = unWindowFlags | SDL_WINDOW_FULLSCREEN
+	else
+		unWindowFlags = unWindowFlags | SDL_WINDOW_RESIZABLE
+	end
+	--log ( "[sdlwindow]'%s' %ldx%ld" windows [ 0 ] . title windows [ 0 ] . w windows [ 0 ] . h )
+	sdlWindow = SDL_CreateWindow ( "game" nWindowPosX nWindowPosY 800 600 unWindowFlags )
+	if ( sdlWindow == 0 ) then
+		log ( "Window could not be created! SDL Error: %s" SDL_GetError ( ) )
+		return false
+	end
+	log ( "create window 0x%x " sdlWindow )
+	G [ "sdlWindow" ] = sdlWindow
+	return true
+}
+function /*VkPhysicalDevice*/ getPhyDev ( ) {
+	instance = G [ "vulkanInstance" ]
+	deviceCountP = nativeIntArray ( 1 )
+	vkEnumeratePhysicalDevices ( instance deviceCountP 0 )
+	deviceCount = deviceCountP [ 0 ]
+	log ( "deviceCount=%d" deviceCount )
+	if ( deviceCount <= 0 ) then
+		error ( "no phy dev\n" )
+	end
+	//	VkPhysicalDevice PhysicalDevice
+	PhysicalDevices = nativePointerArray ( deviceCount )
+	vkEnumeratePhysicalDevices ( instance deviceCountP PhysicalDevices )
+	PhysicalDevice = 0
+	phyDevProp = struct ( VkPhysicalDeviceProperties )
+	for ( deviceCount i ) {
+		vkGetPhysicalDeviceProperties ( PhysicalDevices [ i ] phyDevProp )
+
+		log ( "PhyDev %x [%d/%d] api:%d driver:%d vendor:%d device:%d type:%d name:%s"
+			PhysicalDevices [ i ]
+			i + 1 deviceCount phyDevProp . apiVersion phyDevProp . driverVersion
+			phyDevProp . vendorID phyDevProp . deviceID phyDevProp . deviceType
+			nativeString ( phyDevProp . deviceName . addr ( ) ) )
+	}
+	phyindex = 0
+	PhysicalDevice = PhysicalDevices [ phyindex ]
+	checkValue ( PhysicalDevice pos ( ) )
+	log ( "Got Phy Dev [%d/%d] %x\n" phyindex + 1 deviceCount PhysicalDevice )
+	G [ "phyDev" ] = PhysicalDevice
+
+	getMemType ( )
+
+	return PhysicalDevice
+}
+function getMemType ( ) {
+	log ( "getMemType..." )
+	phyDev = G [ "phyDev" ]
+	memProperties = struct ( VkPhysicalDeviceMemoryProperties )
+	vkGetPhysicalDeviceMemoryProperties ( phyDev memProperties )
+	log ( " memProperties . memoryTypeCount=" + memProperties . memoryTypeCount )
+
+	for ( memProperties . memoryTypeCount i ) {
+		log ( "memType[%d/%d]flag:%X(%s) index:%d\n" i + 1
+			memProperties . memoryTypeCount //
+			memProperties . memoryTypes [ i ] . propertyFlags
+			getMEMORY_PROPERTY_name ( memProperties . memoryTypes [ i ] . propertyFlags )
+			memProperties . memoryTypes [ i ] . heapIndex )
+	}
+
+	for ( memProperties . memoryHeapCount i ) {
+		log ( "memHeaps[%d/%d]flag:%x size:%,d" i + 1
+			memProperties . memoryHeapCount //
+			memProperties . memoryHeaps [ i ] . flags
+			memProperties . memoryHeaps [ i ] . size )
+	}
+	G [ "memProp" ] = memProperties
+}
+function getMEMORY_PROPERTY_name ( flg ) {
+	return flg
+}
+function nvk_init ( ) {
+	nsdl_createInstance ( )
+	doCreateDebugUtilsMessenger ( )
+	nsdl_createSurface ( )
+	getPhyDev ( )
+	findDeviceAndQueue ( )
+	getOtherInfo ( )
+	createDescriptorPool ( )
+}
+function /*VkSurfaceKHR*/ nsdl_createSurface ( ) {
+	instance = G [ "vulkanInstance" ]
+	sdlWindow = G [ "sdlWindow" ]
+	vulkanSurfaceP = nativePointerArray ( 1 )
+	if SDL_Vulkan_CreateSurface ( sdlWindow instance vulkanSurfaceP ) == SDL_FALSE then
+		error ( "Failed to Create Vulkan Surface: %s " nativeString ( SDL_GetError ( ) ) )
+		// quitVulkan();
+	end
+	vulkanSurface = vulkanSurfaceP [ 0 ]
+	log ( "SDL_Vulkan_CreateSurface surface=%x" vulkanSurface )
+	G [ "surface" ] = vulkanSurface
+	return vulkanSurface
+}
+
+function doCreateDebugUtilsMessenger ( ) {
+	instance = G [ "vulkanInstance" ]
+	log ( "instance=%x" instance )
+
+	CreateDebugUtilsMessenger = vkGetInstanceProcAddr ( instance "vkCreateDebugUtilsMessengerEXT" )
+	log ( "CreateDebugUtilsMessenger=%x" CreateDebugUtilsMessenger )
+	if CreateDebugUtilsMessenger == 0 then
+		log ( `[w] TODO cannot get ' vkGetInstanceProcAddr ( instance "vkCreateDebugUtilsMessengerEXT" )', skip ` )
+		return 0
+	end
+	checkValue ( CreateDebugUtilsMessenger pos ( ) )
+
+	debugMessenger = nativePointerArray ( 1 )
+	createInfo = struct ( VkDebugUtilsMessengerCreateInfoEXT )
+	createInfo . sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT
+	createInfo . messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+	| VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+	| VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
+	createInfo . messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+	| VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+	| VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT
+	createInfo . pfnUserCallback = ( cb = nativeFindFunc ( "./libmyvkcb.so" "debugUtilsMessengerCallback" ) )
+	log ( "cb=%x" cb )
+
+	checkResult ( nativeCallAddr ( CreateDebugUtilsMessenger "i****" instance createInfo VK_NULL_HANDLE debugMessenger ) pos ( ) )
+	log ( "vkCreateDebugUtilsMessengerEXT OK" )
+}
+
+private function VK_MAKE_API_VERSION ( variant major minor patch ) {
+	return ( variant << 29 ) | ( major << 22 ) | ( minor << 12 ) | patch
+}
+function nsdl_createInstance ( ) {
+	app = struct ( VkApplicationInfo )
+	app . sType = VK_STRUCTURE_TYPE_APPLICATION_INFO
+	app . pApplicationName = "NA"
+	app . applicationVersion = 1
+	app . pEngineName = "NA"
+	app . engineVersion = 1
+	VK_API_VERSION_1_0 = VK_MAKE_API_VERSION ( 0 1 0 0 )
+	log ( "VK_API_VERSION_1_0=%x" VK_API_VERSION_1_0 )
+	app . apiVersion = VK_API_VERSION_1_0
+
+	extensionCount = nativeIntArray ( 1 )
+	sdlWindow = G [ "sdlWindow" ]
+	log ( "sdlWindow=%x" sdlWindow )
+	SDL_Vulkan_GetInstanceExtensions ( sdlWindow extensionCount 0 )
+	maxext = extensionCount [ 0 ] + 1
+	enabledExts = nativeStringArray ( maxext )
+	if SDL_Vulkan_GetInstanceExtensions ( sdlWindow extensionCount enabledExts ) == SDL_FALSE then
+		error ( "Could not get SDL Vulkan Extensions: " + SDL_GetError ( ) )
+	end
+	ec1 = extensionCount [ 0 ]
+	enabledExts [ ec1 ] = "VK_EXT_debug_utils"
+	ec1 = ec1 + 1
+
+	--	log ( "[vk1]extensionCount=%d" ec1 )
+	for ( ec1 i ) {
+		log ( "[vk1]ext[%d/%d]=%s" i + 1 ec1 enabledExts [ i ] )
+	}
+
+	inst_info = struct ( VkInstanceCreateInfo )
+	inst_info . sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
+	--	inst_info . flags = 0
+	inst_info . pApplicationInfo = app
+#	inst_info . enabledLayerCount = 1
+#	inst_info . ppEnabledLayerNames = parseData ( '[ VK_LAYER_KHRONOS_validation ]' )
+	inst_info . enabledExtensionCount = ec1
+	inst_info . ppEnabledExtensionNames = enabledExts
+
+	log ( "inst_info=%x  app=%x .app=%x" inst_info . addr ( ) app . addr ( ) inst_info . pApplicationInfo )
+
+	vulkanInstance = nativePointerArray ( 1 )
+	//	logs( "vkCreateInstance starting" ) 
+	checkResult ( vkCreateInstance ( inst_info 0 vulkanInstance ) pos ( ) )
+	//	logs( "vkCreateInstance seems OK" ) 
+	//	clone( vulkanInstance )
+	vi = vulkanInstance [ 0 ]
+	log ( "vulkanInstance=%x" vi )
+	G [ "vulkanInstance" ] = vi
+	return vi
+}
+function checkValue ( x pos ) {
+	if x == 0 then
+		log ( "failed checkValue=%s at %s" x pos )
+		exit ( 1 )
+	end
+}
+function checkResult ( x pos ) {
+	if x != 0 then
+		log ( "failed checkResult=%s at %s" x pos )
+		exit ( 1 )
+	end
+}
+
+function findDeviceAndQueue ( ) {
+	phyDev = G [ "phyDev" ]
+	--	uint32_t indices [ 3 ] = { } 
+	queueFamilyCountP = nativeIntArray ( 1 )
+	vkGetPhysicalDeviceQueueFamilyProperties ( phyDev queueFamilyCountP 0 )
+	queueFamilyCount = queueFamilyCountP [ 0 ]
+	log ( "queueFamilyCount=%d" queueFamilyCount )
+	/*	VkQueueFamilyProperties * */
+	qfps = nativeStructArray ( VkQueueFamilyProperties queueFamilyCount )
+	vkGetPhysicalDeviceQueueFamilyProperties ( phyDev queueFamilyCountP qfps )
+
+	indexCnt = 0
+	queueCnt = 0
+
+	supported = { } . copy ( )
+	//VkDeviceQueueCreateInfo * 
+	queueCreateInfos = nativeStructArray ( VkDeviceQueueCreateInfo queueFamilyCount )
+	maxCount = 2
+	for ( queueFamilyCount i ) {
+		queueFamily = qfps [ i ]
+		if ( queueFamily . queueCount > maxCount ) then
+			maxCount = queueFamily . queueCount
+		end
+	}
+	log ( "max queueCount=%d" maxCount )
+	--	float * queuePriority = new float [ maxCount ]
+	--	for ( int j = 0 j < maxCount j ++ )
+	--	queuePriority [ j ] = 1.0f
+	queuePriority = nativeIntArray ( maxCount )
+	-- for ( maxCount j ) { queuePriority [ j ] = 1.0 }
+	surface = G [ "surface" ]
+	for ( queueFamilyCount i ) {
+		queueFamily = qfps [ i ]
+
+		maxCount = queueFamily . queueCount
+		qci = queueCreateInfos [ i ]
+		--	memset ( ( void * ) qci 0 sizeof ( VkDeviceQueueCreateInfo ) )
+		qci . sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+		qci . queueFamilyIndex = i
+		qci . queueCount = queueFamily . queueCount
+		qci . pQueuePriorities = queuePriority
+
+		/*	VkExtent3D*/ e3 = queueFamily . minImageTransferGranularity
+		queueCnt = queueCnt + queueFamily . queueCount
+
+		presentSupportP = nativeIntArray ( 1 )
+		vkGetPhysicalDeviceSurfaceSupportKHR ( phyDev i surface presentSupportP )
+		supported [ i ] = presentSupportP [ 0 ]
+		log ( "QueueFamily[%d/%d] supported:%s queueFlags=%x(%s) queueCount=%d Extent(%d %d %d)\n"
+			i + 1 queueFamilyCount presentSupportP [ 0 ]
+			queueFamily . queueFlags
+			getQUEUE_name ( queueFamily . queueFlags )
+			queueFamily . queueCount e3 . width e3 . height e3 . depth )
+	}
+
+	createInfo = struct ( VkDeviceCreateInfo )
+	createInfo . sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
+	createInfo . queueCreateInfoCount = queueFamilyCount
+	createInfo . pQueueCreateInfos = queueCreateInfos
+	// create device with queue
+	--	deviceFeatures = nativeStructArray ( VkPhysicalDeviceFeatures 1 )
+	--	createInfo . pEnabledFeatures =  deviceFeatures
+	createInfo . enabledExtensionCount = 1
+	createInfo . ppEnabledExtensionNames = [ VK_KHR_swapchain ]
+	createInfo . enabledLayerCount = 1
+	createInfo . ppEnabledLayerNames = [ VK_LAYER_KHRONOS_validation ]
+	deviceP = nativePointerArray ( 1 )
+	checkResult ( vkCreateDevice ( phyDev createInfo 0 deviceP ) pos ( ) )
+	device = deviceP [ 0 ]
+	checkValue ( device pos ( ) )
+	G [ "device" ] = device
+	log ( "device=%x" device )
+	// a=a
+	--VkQueue * queuesGfx = new VkQueue [ queueCnt ]
+	--VkQueue * queuesTran = new VkQueue [ queueCnt ]
+	qi = 0
+	queuesGfx = 0
+	queuesTran = 0
+	queue = nativePointerArray ( 1 )
+	for ( queueFamilyCount i ) {
+		if supported [ i ] == 0 then continue end
+		/*	VkQueueFamilyProperties*/ qf = qfps [ i ]
+		for ( qf . queueCount j ) {
+			qi = qi + 1
+			vkGetDeviceQueue ( device i j queue )
+			checkValue ( queue [ 0 ] pos ( ) )
+			if ( qfps [ i ] . queueFlags & VK_QUEUE_GRAPHICS_BIT ) != 0 then
+				if queuesGfx == 0 then queuesGfx = queue [ 0 ] end
+			else if ( qfps [ i ] . queueFlags & VK_QUEUE_TRANSFER_BIT ) != 0 then
+					if queuesTran == 0 then queuesTran = queue [ 0 ] end
+				end
+			end
+		}
+	}
+
+	G [ "queue" ] = queuesGfx
+	if queuesTran == 0 then queuesTran = queuesGfx end
+	G [ "queuesTran" ] = queuesTran
+	log ( "queuesGfx=%x queueTran=%x" queuesGfx queuesTran )
+	if ( qi == 0 ) then
+		error ( "no supported queue family" )
+	end
+}
+function getQUEUE_name ( v ) { return v }
+
+function getOtherInfo ( ) {
+	phyDev = G [ "phyDev" ]
+	surface = G [ "surface" ]
+
+	-- surfaceFormat =struct(VkSurfaceFormatKHR) --
+	presentMode = VK_PRESENT_MODE_FIFO_KHR // fps=60 //MAILBOX_KHR==2000fps
+	countP = nativeIntArray ( 1 )
+	checkResult ( vkGetPhysicalDeviceSurfaceFormatsKHR ( phyDev surface countP 0 ) pos ( ) )
+	count = countP [ 0 ]
+	if ( count == 0 ) then error ( "what" ) end
+	formats = nativeStructArray ( VkSurfaceFormatKHR count )
+	checkResult ( vkGetPhysicalDeviceSurfaceFormatsKHR ( phyDev surface countP formats ) pos ( ) )
+
+	for ( count i ) {
+		log ( "[%d/%d]format=%s  colorspace=%s\n" i + 1 count
+			formats [ i ] . format formats [ i ] . colorSpace )
+		--  getVK_FORMAT_name ( formats [ i ] . format   buf2   buf1000 )  
+		--  getColorSpaceName ( formats [ i ] . colorSpace   buf   buf1000 ) )
+	}
+	ok = false
+	surfaceFormat = 0
+	pi = 0
+	for ( count i ) {
+		if ( formats [ i ] . format == VK_FORMAT_R8G8B8A8_SRGB ) then
+			surfaceFormat = formats [ i ]
+			ok = true
+			pi = i
+			break
+		end
+	}
+	if ( ! ok ) then
+		pi = 0
+		surfaceFormat = formats [ 0 ]
+	end
+	log ( "select %d/%d VK_FORMAT_%s\n" pi + 1 count formats [ pi ] . format )
+	--	nJava :: getVK_FORMAT_name ( buf2 buf1000 ) )
+	if surfaceFormat . format == 0 then
+		error ( "not found needed surfaceFormat" )
+	end
+
+	checkResult ( vkGetPhysicalDeviceSurfacePresentModesKHR (
+			phyDev surface countP 0 ) pos ( ) )
+	count = countP [ 0 ]
+	if ( count == 0 ) then
+		error ( "what?" )
+	end
+	/*	VkPresentModeKHR * */ presentModes = nativePointerArray ( count ) // new VkPresentModeKHR [ count ]
+	checkResult ( vkGetPhysicalDeviceSurfacePresentModesKHR (
+			phyDev surface countP presentModes ) pos ( ) )
+	count = countP [ 0 ]
+	for ( count i ) {
+		log ( "presentModes[%d]=%s\n" i presentModes [ i ] )
+		--	nJava :: getPRESENT_MODE_name ( presentModes [ i ] buf buf1000 ) )
+	}
+	ok = false
+	for ( count i ) {
+		if ( presentModes [ i ] == presentMode ) then
+			ok = true
+			break
+		end
+	}
+	if ( ! ok ) then
+		presentMode = VK_PRESENT_MODE_FIFO_KHR
+	end
+	--	log ( "select presentMode=%s" presentMode)
+	--	nJava :: getPRESENT_MODE_name ( presentMode buf buf1000 ) )
+	G [ "presentMode" ] = presentMode
+	G [ "surfaceFormat" ] = surfaceFormat
+	log ( "presentMode=%x surfaceFormat=%x " presentMode surfaceFormat . addr ( ) )
+}
+
+function createDescriptorPool ( ) {
+	iss = intArray ( VK_DESCRIPTOR_TYPE_SAMPLER 1000
+		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER 1000
+		VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE 1000
+		VK_DESCRIPTOR_TYPE_STORAGE_IMAGE 1000
+		VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER 1000
+		VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER 1000
+		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER 1000
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER 1000
+		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC 1000
+		VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC 1000
+		VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT 1000 )
+	size = iss . size ( ) / 2
+	/*VkDescriptorPoolSize*/ pool_sizes = initNativeIntArray ( iss )
+
+	pool_info = struct ( VkDescriptorPoolCreateInfo )
+	pool_info . sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO
+	pool_info . flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
+	pool_info . maxSets = 1000 * size
+	pool_info . poolSizeCount = size
+	pool_info . pPoolSizes = pool_sizes
+	descriptorPoolP = nativePointerArray ( 1 )
+	checkResult ( vkCreateDescriptorPool ( G [ "device" ] pool_info 0 descriptorPoolP ) pos ( ) )
+	descriptorPool = descriptorPoolP [ 0 ]
+	G [ "descriptorPool" ] = descriptorPool
+	log ( "descriptorPool=%x" descriptorPool )
+}

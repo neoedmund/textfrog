@@ -1,0 +1,20 @@
+#!/usr/bin/env textfrog
+runnable main {
+	log ( 'hello world ' + [ aaa bbb [ ccc dd ] ee ff [ 11 22 [ 33 44 ] ] ] )
+	v = 3240784680
+	v2 = '' // toInt ( v )
+	v3 = format ( '0x%X' v )
+	log ( 'now36:%s' long2str ( now ( ) 36 ) )
+	log ( '%s %s %s' v v2 v3 )
+	log ( 'java ver %s, tfg ver %s, OS %s, CPUs:%s' G . systemEnv [ 'java.version' ] G . VER
+		G . isMac ? "MacOS" : ( G . isWindows ? "Windows" : 'Linux' )
+		G . cpuCount )
+	if ! G . isWindows
+		include ( 'lib.tfg' )
+		libC ( )
+		log ( 'pid=%s' getpid ( ) )
+	else
+		log ( '-- Windows not test getpid()' )
+	end
+}
+

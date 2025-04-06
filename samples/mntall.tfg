@@ -1,0 +1,47 @@
+#!/usr/bin/env textfrog
+#0 dev	 1 mountpoint	 2 fs	 3 size	 4 usage	 5 uuid	 6 label	
+# /dev/nvme0n1p1	/media/nvme0n1p1	vfat	92MB	46%	36A6-B548	NA	
+# /dev/nvme0n1p2	NA	NA	NA	NA	NA	Microsoft reserved partition	
+# /dev/nvme0n1p3	/media/nvme0n1p3	ntfs	471GB	47%	E40C37960C3762AA	Basic data partition	
+# /dev/nvme0n1p4	/media/nvme0n1p4	ext4	249GB	75%	11cd9c18-7e8f-4fbf-8049-0750a3a44ad6	prev_os	
+# /dev/nvme0n1p5	/media/nvme0n1p5	ext4	201GB	70%	a40045bb-1fef-47cf-9957-e4046f6c85e2	current_os	
+# /dev/sda1	/	ext4	195GB	3%	98e667c7-3a13-41bd-a6d8-1aecd5a79b8b	NA	
+# /dev/sda2	/media/sda2	ext4	152GB	34%	51fc097f-dfab-4511-baaa-b8cb8781905c	NA	
+# /dev/sda3	/media/sda3	ntfs	109GB	1%	0A7BF75B58470CF9	NA	
+# /dev/sdb1	/media/sdb1	ntfs	223GB	85%	597684D10FD8D44D	steam_on_ntfs	
+# /dev/sdc1	NA	NA	NA	NA	NA	Microsoft reserved partition	
+# /dev/sdc2	NA	NA	NA	NA	NA	Basic data partition	
+# /dev/sdc3	/media/sdc3	ext4	1,801GB	67%	4cc41b55-2a33-4f62-be7d-f833a77a5681	Basic data partition	
+include ( 'util.tfg' )
+include ( 'mntinfo.tfg' )
+runnable main {
+	rs = mntinfo ( )
+	NTFS_OPT = "-t ntfs3 -o force,uid=1000,gid=1000" // use ntfs3 is available
+	fat_opt = '-t vfat -o utf8,uid=1000,gid=1000'
+	NTFS_FMT = 'ntfs3'
+	cnt = 0
+	tryBash('.' 'sudo chown neoe:neoe /media/')
+	for mntinfo ( ) r {
+
+		if r [ 2 ] == 'NA' continue end -- unknown fs
+		if ! r [ 0 ] . startsWith ( '/dev/' ) continue end -- not device
+		name = r [ 0 ] [ 5 .. ]
+		dname= '/media/' + name
+		--		if r [ 1 ] != 'NA' log ( "already mounted %s at %s" r [ 0 ] r [ 1 ] ) continue end -- already mounted
+				if r [ 1 ] == dname  log ( "already mounted %s at %s" r [ 0 ] r [ 1 ] ) continue end -- already mounted
+		if ! FileObj (dname ) . exists ( ) FileObj ( dname ) . mkdirs ( ) end
+		if r [ 2 ] . contains ( 'fat' )
+			tryBash ( '.' format ( 'sudo mount   -o utf8,uid=1000,gid=1000 %s %s' r [ 0 ] '/media/' + name ) )
+		elseif r [ 2 ] == 'ntfs'
+			ret = tryBash ( '.' format ( 'sudo mount  -t %s -o force,uid=1000,gid=1000 %s %s' NTFS_FMT r [ 0 ] '/media/' + name ) ) // ntfs3 is avail
+			if ret [ 2 ] != 0 && NTFS_FMT != 'ntfs3'
+				NTFS_FMT = 'ntfs3'
+				tryBash ( '.' format ( 'sudo mount  -t %s -o force,uid=1000,gid=1000 %s %s' NTFS_FMT r [ 0 ] '/media/' + name ) ) // ntfs3 is avail
+			end
+		else
+			tryBash ( '.' format ( 'sudo mount   %s %s' r [ 0 ] '/media/' + name ) )
+		end
+		cnt += 1
+	}
+	if cnt > 0 rs = mntinfo ( ) end
+}

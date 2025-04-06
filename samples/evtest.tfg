@@ -1,0 +1,54 @@
+#!/usr/bin/env textfrog
+runnable main {
+
+	include ( 'lib.tfg' )
+	basedir = G . systemEnv . neoebuild_base
+	log ( 'basedir=' + basedir )
+	loadLib('myev')
+	// libHeader ( "myev" , [ ] . add ( basedir + "/lab0/linux/ev4/c/myev.h" ) , [ EXPORT_API ] , [ ] , lib ( "myev" ) , [ ] )
+	libC ( )
+
+	test = struct ( epoll_event )
+	if test . size ( ) != 12 error ( "bug epoll_event.size()==%s(thought==12)" test . size ( ) ) end
+	test = struct ( input_event )
+	if test . size ( ) != 24 error ( "bug input_event.size()==%s(thought==24)" test . size ( ) ) end
+	strbutP = nativePointerArray ( 1 )
+	eventbutP = nativePointerArray ( 1 )
+	ret = myev_bind ( strbutP eventbutP )
+	if ret == 0 error ( "bind events failed" ) end
+	log ( nativeString ( strbutP [ 0 ] ) )
+	events = nativeStructArray ( 'epoll_event' MAX_EVENTS eventbutP [ 0 ] )
+	G . inputs = nativeStructArray ( 'input_event' 60 )
+	loop {
+		cnt = myev_pull ( )
+		if cnt == 0
+			log ( "myev_pull seems failed , let's bind it again" )
+			sleep ( 100 )
+			ret = myev_bind ( )
+			if ret == 0 error ( "bind events failed" ) end
+		else
+			for cnt i {
+				log ( "(%d/%d)" i + 1 cnt )
+				processEvent ( events [ i ] )
+			}
+			-- log ( "---" )
+		end
+	}
+}
+
+function processEvent ( evt ) {
+	//log ( "events:%x fd:%x " evt . events evt . fd )
+	ev = G . inputs
+	rd = read ( evt . fd ev ev . size ( ) )
+	--	if rd==-1 return  -1 end
+	usize = 24
+	if rd % usize != 0 error ( "why? rd=%d fd=%x" rd evt . fd ) return 0 end
+	size = rd / usize
+	for size i {
+		evi = ev [ i ]
+		log ( "[%d/%d] fd=%d type=%d code=%d value=%d" i + 1 size evt . fd evi . type evi . code evi . value )
+	}
+	return size
+}
+
+

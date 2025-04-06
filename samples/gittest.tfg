@@ -1,0 +1,24 @@
+#!/usr/bin/env textfrog
+include ( "util.tfg" )
+runnable main args {
+	dir = '/opt/linux'
+	ret = tryBash ( dir "acpitool -e" )
+	f = finder ( ret [ 0 ] )
+	f . find ( 'Freq. scaling driver' )
+	f . find ( ':' )
+	s = f . readUntil ( '\n' ) . trim ( )
+	if s == 'amd-pstate'
+		ret = checkBash ( dir 'git bisect good' )
+	else
+		log ( "driver is " + s )
+		ret = checkBash ( dir 'git bisect bad' )
+	end
+	if ret [ 0 ] . contains ( 'is the first bad commit' )
+		log ( 'done' )
+		return 0
+	end
+	checkBash ( dir "/opt/lab/lab0/linux/kernel_build.tfg" )
+	tryBash ( dir "sudo reboot" )
+	sleep ( 2000 )
+	tryBash ( dir "sudo reboot" )
+}

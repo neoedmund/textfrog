@@ -1,0 +1,223 @@
+#!/usr/bin/env textfrog
+// show mount info , lsblk(partition) + mount(fs) + df(usage) + blkid(PARTUUID)
+include ( 'util.tfg' )
+runnable main {
+	rs = mntinfo ( )
+	probeOS ( rs )
+}
+func probeOS ( rs ) {
+	sb = [ ]
+	sb . add ( 'OS:{' )
+	for rs row {
+		if row [ 2 ] . contains ( 'vfat' )
+			if FileObj ( row [ 1 ] + '/efi' ) . exists ( ) || FileObj ( row [ 1 ] + '/EFI' ) . exists ( )
+				sb . add ( 'EFI\t' + row [ 0 ] )
+			end
+		elseif row [ 2 ] . contains ( 'ntfs' )
+			if FileObj ( row [ 1 ] + '/Windows' ) . exists ( ) && FileObj ( row [ 1 ] + '/Users' ) . exists ( )
+				sb . add ( 'Windows\t' + row [ 0 ] )
+			end
+		elseif row [ 2 ] . contains ( 'ext' )
+			findLinux ( row [ 1 ] sb row [ 0 ] row [ 5 ] , [ ] )
+		end
+	}
+	sb . add ( '}' )
+	log ( sb . join ( '\n' ) )
+}
+func findLinux ( rootdir sb dev uuid ret ) {
+	mnt = checkFstab ( rootdir + '/etc/fstab' uuid dev )
+	log('searhing linux in %s , mnt=%s' rootdir mnt)
+	if mnt . startsWith ( 'PASS' ) else return 0 end
+	K1 = 'vmlinuz-'
+	if dev . startsWith ( '/dev/' ) dev = dev [ 5 .. ] end
+	filewalk rootdir + '/boot' fn 1 {
+		fn0 = FileObj ( fn ) . getName ( )
+		if fn0 . startsWith ( K1 )
+			ver = fn0 [ K1 . length ( ) .. ]
+			if FileObj ( rootdir + '/lib/modules/' + ver ) . exists ( )
+				sb . add ( 'Linux-' + ver + '\t' + dev )
+				sb . add ( ' 	fstable ' + mnt )
+				ret . add ( ver )
+			end
+		end
+	}
+}
+func checkFstab ( fn uuid dev ) {
+	if ! FileObj ( fn ) . exists ( )
+		return 'FAIL(File not found)'
+	end
+	for file ( fn ) . split ( '\n' ) line {
+		line = line . trim ( )
+		if line . startsWith ( '#' ) continue end
+		ts = spacedTokens ( line )
+		mnt = ts . ns ( )
+		path = ts . ns ( )
+		if path == '/'
+			if mnt . contains ( uuid ) || mnt . endsWith ( dev ) return format ( 'PASS(%s)' mnt ) end
+			return format ( 'FAIL(%s)' mnt )
+		end
+	}
+	return 'FAIL(/ not found)'
+}
+func mntinfo {
+	parse_lsblk ( checkBash ( '/tmp' 'sudo lsblk' ) [ 0 ] )
+	parse_mount ( checkBash ( '/tmp' 'mount' ) [ 0 ] )
+	parse_df ( checkBash ( '/tmp' 'df' ) [ 0 ] )
+	parse_blkid ( checkBash ( '/tmp' 'sudo blkid' ) [ 0 ] )
+	//print
+	sb = newBaos ( )
+	sb . str ( '#0 dev\t 1 mountpoint\t 2 fs\t 3 size\t 4 usage\t 5 uuid\t 6 label\t\n' )
+	rs = [ ]
+	mps = set ( [ ] )
+	for G . blkid1 dev uuid {
+		row = [ '' ] * 7
+		rs . add ( row )
+		row [ 0 ] = dev
+		row [ 1 ] = ( mp = G . lsblk1 [ dev ] )
+		mps . add ( mp )
+		row [ 2 ] = G . blkid3 [ dev ]
+		row [ 3 ] = getSize ( mp dev )
+		row [ 4 ] = getUsage ( mp dev )
+		row [ 5 ] = uuid
+		row [ 6 ] = nvl ( mylabel ( G . blkid2 [ dev ] mp ) )
+	}
+	for G . mount1 mp name {
+		if mps . contains ( mp ) continue end
+		mps . add ( mp )
+		row = [ '' ] * 7
+		rs . add ( row )
+		row [ 0 ] = name
+		row [ 1 ] = mp
+		row [ 2 ] = nvl ( G . mount2 [ mp ] )
+		row [ 3 ] = getSize ( mp name )
+		row [ 4 ] = getUsage ( mp name )
+		row [ 5 ] = nvl ( G . blkid1 [ name ] )
+		row [ 6 ] = nvl ( mylabel ( G . blkid2 [ name ] mp ) )
+	}
+
+	rs . sort ( -> a b {
+			v = a [ 0 ] . compareTo ( b [ 0 ] )
+			if v == 0
+				v = a [ 1 ] . compareTo ( b [ 1 ] )
+			end
+			return v
+		} )
+	log ( rs )
+	for rs r {
+		for 7 i {
+			sb . str ( '' + r [ i ] ) . str ( '\t' )
+		}
+		sb . str ( '\n' )
+	}
+	log ( sb . toString ( ) )
+	return rs
+}
+func getUsage ( mp dev ) {
+	used = G . df2 [ mp ]
+	if used == null used = G . df5 [ dev ] end
+	if used != null && used != 'NA'
+		size = getSize ( mp dev )
+		size1 = getNum ( size )
+		return format ( '%s(+ %.0f %s)' used
+			toFloat ( size1 . replaceAll ( "," , "" ) ) / 100.0f * ( 100 - toFloat ( used [ 0 .. -2 ] ) )
+			size [ size1 . length ( ) .. -1 ] )
+	end
+	return nvl ( used )
+}
+func getNum ( s ) {
+	for s . length ( ) i {
+		if ! '0123456789.,' . contains ( s [ i .. i + 1 ] ) return s [ 0 .. i ] end
+	}
+	return s
+}
+func getSize ( mp dev ) {
+	used = G . df1 [ mp ]
+	if used == null used = G . df4 [ dev ] end
+	return nvl ( used )
+}
+func mylabel ( s mp ) {
+	if s == 'NA' || s == null || s == ''
+		if mp != 'NA' && FileObj ( mp + '/LABEL' ) . isFile ( )
+			return file ( mp + '/LABEL' ) . trim ( )
+		end
+	end
+	return s
+}
+func getv ( m k ) { return nvl ( m [ k ] ) }
+func nvl ( v ) { if v == null return 'NA' end return v }
+func parse_blkid ( txt ) { // /dev/sda1: UUID="879ce6dc-1496-4bce-a038-da94258498d6" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="145e7c48-01"
+	uuid = { } label = { } type = { }
+	for txt . split ( '\n' ) line i {
+		p1 = line . indexOf ( ':' )
+		dev = line [ 0 .. p1 ]
+		m = parseData ( format ( '{%s}' line [ p1 + 1 .. ] . replaceAll ( '=' ':' ) ) )
+		uuid [ dev ] = nvl ( m . UUID )
+		label [ dev ] = nvl ( m . PARTLABEL )
+		type [ dev ] = nvl ( m . TYPE )
+	}
+	G . blkid1 = uuid
+	G . blkid2 = label
+	G . blkid3 = type
+}
+func parse_df ( txt ) { // /dev/sda1       205314024   51093348 143718536  27% /media/sda1
+	// tmpfs            65912448       1320  65911128   1% /run
+	m1 = { } m2 = { } m3 = { } m4 = { } m5 = { }
+	for txt . split ( '\n' ) line i {
+		if i == 0 confirm ( line . startsWith ( 'Filesystem' ) 'unexpected header:' + line ) continue end
+		ts = spacedTokens ( line )
+		name = ts . ns ( )
+		sizeK = ts . ns ( )
+		ts . ns ( )
+		ts . ns ( )
+		used = ts . ns ( )
+		mp = ts . ns ( )
+		m1 [ mp ] = ( s = sizeKtoG ( toInt ( sizeK ) ) )
+		m2 [ mp ] = used
+		m3 [ mp ] = name
+		m4 [ name ] = s
+		m5 [ name ] = used
+	}
+	G . df1 = m1
+	G . df2 = m2
+	G . df3 = m3
+	G . df4 = m4
+	G . df5 = m5
+}
+func sizeKtoG ( v ) {
+	v /= 1024
+	if v < 1024 return format ( '%,dMB' v ) end
+	return format ( '%,dGB' v / 1024 )
+}
+func parse_mount ( txt ) { //  /dev/nvme0n1p5 on / type ext4 (rw,relatime,errors=remount-ro)
+	m1 = { } m2 = { }
+	for txt . split ( '\n' ) line {
+		ts = spacedTokens ( line )
+		name = ts . ns ( )
+		ts . ns ( )
+		mp = ts . ns ( )
+		ts . ns ( )
+		fs = ts . ns ( )
+		m1 [ mp ] = name
+		m2 [ mp ] = fs
+	}
+	G . mount1 = m1
+	G . mount2 = m2
+}
+func parse_lsblk ( txt ) { //├─sda1        8:1    0   200G  0 part /media/sda1
+	part = { } sizemap = { }
+	for txt . split ( '\n' ) line {
+		if line . startsWith ( '├─' ) || line . startsWith ( '└─' )
+			ts = spacedTokens ( line [ 2 .. ] )
+			dev = '/dev/' + ts . ns ( )
+			ts . ns ( ) //maj:min
+			ts . ns ( ) // rm
+			size = ts . ns ( )
+			ts . ns ( ) ts . ns ( ) // ro type
+			mp = ts . ns ( ) //mountpoint
+			part [ dev ] = nvl ( mp )
+			sizemap [ dev ] = size
+		end
+	}
+	G . lsblk1 = part
+	G . lsblk2 = sizemap
+}

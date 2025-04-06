@@ -1,0 +1,26 @@
+#!/usr/bin/env textfrog
+// special purpose
+runnable main args {
+	fn = '/home/neoe/.neoeime/encn.dict'
+	ss = [ ]
+	log ( 'test code=%s' isHex ( 'code' ) )
+	fileline fn line i {
+		p = line . indexOf ( '\t' )
+		if p > 0
+			word = line [ 0 .. p ]
+			//if word . length ( ) <= 8
+			if isHex ( word ) ss . add ( line ) end
+			//end
+		end
+	}
+	log ( 'found %,d hex words in dict' ss . size ( ) )
+	ss . sort ( )
+	save ( ss . join ( '\n' ) 'hexword.log' )
+}
+func isHex ( s ) {
+	a = toChar ( 'a' ) f = toChar ( 'f' ) etc='olzgqs'
+	for s . toLowerCase ( ) c {
+		if ( c >= a && c <= f ) || etc.contains(c) else return false end
+	}
+	return true
+}

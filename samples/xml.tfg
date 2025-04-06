@@ -1,0 +1,94 @@
+#!/usr/bin/env textfrog
+# wow, it's slow
+runnable test args {
+	fn = args [ 0 ]
+	log ( parseXML ( file ( fn ) ) )
+}
+
+function parseXML ( xml ) {
+	ts = Java ( "neoe.token.Tokens" ) . getMiniXMLTokens ( xml )
+	root = readNode ( ts )
+	t = ts . next2 ( )
+	confirm ( t == null "still has remain: " + t . token )
+	return root
+}
+private readNode ( ts ) {
+	node = { }
+	confirm ( ts . next2 ( ) . str ( "<" ) 'expect < at ' + ts . pos ( ) )
+	t = ts . next2 ( )
+	confirm ( t . isIdentifier ( ) format ( "need identifier but got %s at %s " t ts . pos ( ) ) )
+	node . _name = t . token
+	//readProp
+	kids = 0
+	loop {
+		t = ts . next2 ( )
+		if t . str ( "/>" ) break end
+		if t . str ( ">" ) kids = [ ] break end
+		confirm ( t . isIdentifier ( ) format ( "expect prop but got got %s at %s " t ts . pos ( ) ) )
+		k = t . token
+		ts . confirmNext ( "=" )
+		v = ts . next2 ( )
+		confirm ( v . isString ( ) format ( "expect string value but got got %s at %s " t ts . pos ( ) ) )
+		node [ k ] = v . token [ 1 .. -2 ]
+	}
+	if kids == 0 return node end
+	node . _kids = kids
+	loop {
+		t = ts . next2 ( )
+		if t == null error ( "not closed" ) end
+		if t . str ( "<!" ) //<!CDATA[  ]]>
+			ts . confirmNext ( "CDATA" )
+			ts . confirmNext ( "[" )
+			s = readcdata ( ts )
+			if ! ( s . trim ( ) . isEmpty ) kids . add ( s ) end
+		elseif t . str ( "</" )
+			ts . confirmNext ( node . _name "expect " + node . _name )
+			ts . confirmNext ( '>' )
+			return node
+		elseif t . str ( "<" )
+			ts . pushBack ( t )
+			kids . add ( readNode ( ts ) )
+		else
+			ts . pushBack ( t )
+			s = readString ( ts )
+			if ! ( s . trim ( ) . isEmpty ( ) ) kids . add ( s ) end
+		end
+	}
+}
+private readcdata ( ts ) {
+	if true --quick
+		t = ts . readUntil ( "]]>" )
+		return t . token [ 0 .. -4 ]
+	else
+		s = [ ]
+		loop {
+			t = ts . next ( )
+			if t == null return s end
+			if t . str ( "]]>" )
+				return s
+			end
+			s . add ( t . token )
+		}
+	end
+}
+
+private readString ( ts ) {
+	if true --quick
+		t = ts . readUntil ( "<" )
+		ts . rawBack ( 1 )
+		return t . token [ 0 .. -2 ]
+	else
+		s = [ ]
+		loop {
+			t = ts . next ( )
+			if t == null return s end
+			if t . token . startsWith ( "<" )
+				ts . pushBack ( t )
+				return s
+			end
+			if t . isComment ( ) continue end
+			s . add ( t . token )
+		}
+	end
+}
+

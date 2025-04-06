@@ -1,0 +1,75 @@
+function max ( a b ) {
+	if a > b then return a end
+	return b
+}
+function min ( a b ) {
+	if a < b then return a end
+	return b
+}
+function checkExec ( ret ) {
+	if ret [ 2 ] != 0 then
+		error ( "exec failed code %s %s" ret [ 2 ] '' + ret )
+	else
+		log ( 'exec ok:' + ret )
+	end
+	return ret
+}
+
+function checkBash ( path cmd ) {
+	ret = execp ( path 'bash' '-c' cmd )
+	if ret [ 2 ] != 0
+		error ( "exec failed code %s %s" ret [ 2 ] '' + ret )
+	else
+		log ( 'ok:%s' '' + toList ( ret ) )
+	end
+	return ret
+}
+function tryBash ( path cmd ) {
+	ret = execp ( path 'bash' '-c' cmd )
+	return ret
+}
+function checkBashs ( path cmds ) {
+	cs = cmds . split ( '\n' )
+	for cs cmd i {
+		cmd = cmd . trim ( )
+		if cmd == '' || cmd . startsWith ( '#' ) continue end
+		ret = execp ( path 'bash' '-c' cmd )
+		if ret [ 2 ] != 0
+			error ( "[%d/%d]exec failed code %s %s" i + 1 cs . size ( ) ret [ 2 ] '' + ret )
+		else
+			log ( '[%d/%d]ok:%s' i + 1 cs . size ( ) '' + ret )
+		end
+	}
+}
+function tryBashs ( path cmds ) {
+	cs = cmds . split ( '\n' )
+	for cs cmd i {
+		cmd = cmd . trim ( )
+		if cmd == '' || cmd . startsWith ( '#' ) continue end
+		ret = execp ( path 'bash' '-c' cmd )
+		-- log ( ret )
+	}
+}
+function checkSudoBashs ( path cmds ) {
+	cs = cmds . split ( '\n' )
+	for cs cmd i {
+		cmd = cmd . trim ( )
+		if cmd == '' || cmd . startsWith ( '#' ) continue end
+		ret = execp ( path 'sudo' 'bash' '-c' cmd )
+		if ret [ 2 ] != 0
+			error ( format ( '[%d/%d] exec failed code %s %s' i + 1 cs . size ( ) ret [ 2 ] '' + ret ) )
+		else
+			log ( '[%d/%d] ok: %s' i + 1 cs . size ( ) '' + ret )
+		end
+	}
+}
+function trySudoBashs ( path cmds ) {
+	cs = cmds . split ( '\n' )
+	for cs cmd i {
+		cmd = cmd . trim ( )
+		if cmd == '' || cmd . startsWith ( '#' ) continue end
+		ret = execp ( path 'sudo' 'bash' '-c' cmd )
+		-- log ( ret )
+	}
+}
+

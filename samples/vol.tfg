@@ -1,0 +1,33 @@
+include ( 'util.tfg' )
+include ( 'notify.tfg' )
+function volUp ( ) {
+	v = getVol ( )
+	v += 5 if v > 100 v = 100 end
+	setVol ( v )
+}
+function volDown ( ) {
+	v = getVol ( )
+	v -= 5 if v < 0 v = 0 end
+	setVol ( v )
+}
+
+private getVol ( ) {
+	ret = tryBash ( '/tmp' 'amixer get Master' )
+	if ret [ 2 ] != 0 log ( 'exec failed ' + ret )  return 0 end
+	f = finder ( ret [ 0 ] )
+	f . find ( 'Playback' )
+	f . find ( '[' )
+	s = f . readUntil ( '%]' )
+	log ( 'getVol ' + s )
+	return tryNumber ( s )
+}
+
+private setVol ( v ) {
+	log ( 'setVol ' + v )
+	ret = tryBash ( '/tmp' format ( 'amixer set Master %d%% unmute' v ) )
+	fail = ''
+	if ret [ 2 ] != 0 fail = 'failed ' end
+	notify ( format ( '%sVol:%d%%' fail v ) )
+}
+
+

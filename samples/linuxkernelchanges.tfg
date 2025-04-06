@@ -1,0 +1,101 @@
+#!/usr/bin/env textfrog
+/* summry of linux changelog
+tfg  linuxkernelchanges.tfg
+*/
+runnable main args {
+	txt = ''
+	if args . size ( ) > 0
+		fn = args [ 0 ]
+		txt = file ( fn )
+	else
+		txt = autoDownloadChange ( )
+	end
+	log ( 'grouped %s' getGrouped ( txt ) )
+}
+func getGrouped ( txt ) {
+	f = finder ( txt )
+	ss = [ ]
+
+	loop {
+		f . find ( 'Date:' )
+		if f . finished ( ) break end
+		f . readUntil ( '\n' )
+		s = f . readUntil ( '\n' ) . trim ( )
+		if s == ''
+			s = f . readUntil ( '\n' ) . trim ( )
+		else  -- workaound for bug in changelog
+		end
+		ss . add ( s )
+	}
+	log ( 'changelog(%,d) [\n%s\n]' ss . size ( ) addIndex ( ss ) )
+	m = { }
+
+	groupCate ( ss m )
+	sb = [ ]
+	G . CNT = ss . size ( )
+	printGroup ( m 0 sb )
+	return format ( '{\n%s\n}' sb . join ( '' ) )
+}
+func printGroup ( m indent sb ) {
+	keys = array ( m . keySet ( ) ) . sort ( )
+	si = '\t' * indent
+	for keys k {
+		v = m [ k ]
+		if isMap ( v )
+			sb . add ( format ( '%s%s:\n' si k ) )
+			printGroup ( v indent + 1 sb )
+			//sb . add ( format ( '%s\n' si ) )
+		else
+			sb . add ( format ( '%s(%s/%s) %s\n' si v CNT k ) )
+		end
+	}
+}
+func groupCate ( items m ) {
+	R = 'Revert '
+	len1 = 'Revert ' . length ( )
+	for items item i {
+		if item . startsWith ( R )
+			s = item [ len1 .. ] . trim ( )
+			if s . startsWith ( '"' ) && s . endsWith ( '"' ) s = s [ 1 .. -2 ] end
+			addToGroup2 ( m '.' + R s i )
+		else
+			addToGroup ( m item i )
+		end
+	}
+}
+func addToGroup2 ( m g s i ) {
+	m2 = m [ g ]
+	if m2 == null m2 = { } m [ g ] = m2 end
+	addToGroup ( m2 s i )
+}
+func addToGroup ( m s i ) {
+	p1 = s . indexOf ( ':' )
+	if p1 > 0
+		cate = s [ 0 .. p1 ] . trim ( )
+		addToGroup2 ( m cate s [ p1 + 1 .. ] . trim ( ) i )
+	else
+		m [ s ] = i
+	end
+}
+func addIndex ( ss ) {
+	cnt = ss . size ( )
+	sb = [ ]
+	for cnt i {
+		sb . add ( format ( '(%d/%d) %s' i + 1 cnt ss [ i ] ) )
+	}
+	return sb . join ( '\n' )
+}
+func autoDownloadChange {
+	ht1 = urlPage ( 'https://kernel.org/' ) [ 0 ]
+	f = finder ( ht1 )
+	cu = f . find ( 'stable:' )
+	. find ( '>browse<' )
+	. find ( 'a href="' )
+	. readUntil ( '"' )
+	if ! cu . contains ( 'ChangeLog' )
+		error ( 'cannot find changelog url: %s' cu )
+	else
+		log ( 'find changeLog url [%s]' cu )
+	end
+	return urlPage ( cu ) [ 0 ]
+}

@@ -1,0 +1,12 @@
+#!/usr/bin/env textfrog
+include ( 'unpack.tfg' )
+include ( 'autobuild.tfg' )
+runnable function main ( args ) {
+	G . tolocal = true
+	if args . size ( ) > 1 && args [ 1 ] == '/usr'
+		G . tolocal = false
+	end
+	dir = unpack ( args [ 0 .. 1 ] )
+	if dir == 0 log ( 'failed' ) return 1 end
+	return autobuild ( dir )
+}

@@ -1,0 +1,23 @@
+#!/usr/bin/env textfrog
+runnable main args {
+	tag = args [ 0 ]
+	replaceGrub ( tag )
+}
+function replaceGrub ( tag ) {
+	src = file ( '/boot/grub/grub.cfg' )
+	f = finder ( src )
+	ret = [ ]
+	ret . add ( f . readUntil ( 'menuentry ' ) )
+	ret . add ( format ( "menuentry ' Linux %s autotest ' {" tag ) )
+	f . readUntil ( "{" )
+	ret . add ( f . readUntil ( "echo	'" ) )
+	ret . add ( format ( "echo 'loading linux test ver %s ...'
+ linux	/boot/vmlinuz-%s  root=/dev/nvme0n1p4 amd_pstate.enable=1 amd_pstate.shared_mem=1 \n } \n " tag tag ) )
+	f . readUntil ( "}" )
+	ret . add ( f . readRemain ( ) )
+	fout = '/tmp/grub.cfg'
+	save ( ret . join ( '' ) fout )
+	log ( 'ok' )
+	return fout
+}
+

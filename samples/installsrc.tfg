@@ -1,0 +1,8 @@
+#!/usr/bin/env textfrog
+include ( "unpack.tfg" )
+include ( "autobuild.tfg" )
+runnable function main ( args ) {
+	if ( dir = unpack ( args ) ) != 0
+		autobuild ( dir )
+	end
+}

@@ -1,0 +1,17 @@
+#!/usr/bin/env textfrog
+/*
+tfg filterlines /Users/eeneo/Documents/p1.log
+*/
+runnable main args {
+	sb = [ ]
+	for file ( args [ 0 ] ) . split ( '\n' ) line {
+		line = line . trim ( )
+		if line . startsWith ( '#' )
+			sb . add ( format ( `v1.addRow0(sb, "%s", "");` line ) )
+		else
+			sb . add ( format ( `v1.addRow1(sb, "%s", y++, x);` line ) )
+		end
+	}
+	log ( sb . join ( '\n' ) )
+}
+

@@ -1,0 +1,560 @@
+#!/usr/bin/env textfrog
+// deprecated, use autoLib
+putConst ( G [ "consts" ] "size_t" "long" , [ ] )
+include ( "cstruct.tfg" )
+runnable function test ( ) {
+	--	parseHeaders ( "/usr/local/include/SDL2" )
+}
+
+private function testPre ( t ts pre ) {
+	if pre == null || pre . size ( ) == 0 return true end
+	for pre p1 {
+		if t . es ( p1 ) return true end
+	}
+	return false
+	//	if ! ( t . es ( pre [ 0 ] ) ) return false end
+	//	i = 1
+	//	size = pre . size ( )
+	//	loop {
+	//		if i >= size break end
+	//		t = ts . next2 ( )
+	//		if ! ( t . es ( pre [ i ] ) ) return false end
+	//		i = i + 1
+	//	}
+	//	return true
+}
+private function parseTypedef1 ( t ts consts fn cacheConst ) {
+	/*eg. typedef uint64_t VkDeviceAddress;
+		OR 
+    typedef void (SDLCALL * SDL_AudioCallback) (void *userdata, Uint8 * stream,int len);
+    */
+	if ! ( t . es ( "typedef" ) ) return false end
+	t1 = ts . next2 ( )
+	if t1 . es ( "enum" ) || t1 . es ( "struct" )
+		ts . pushBack ( t1 )
+		return false
+	end
+	if t1 . es ( "unsigned" ) || t1 . es ( "signed" ) --ignore
+		t1 = ts . next2 ( )
+	end
+	t2 = ts . next2 ( )
+	loop {
+		if t2 . es ( "*" )
+			t1 = t2
+			t2 = ts . next2 ( )
+		else break
+		end
+	}
+	if t2 . es ( "(" )
+		tt = readUntilTokens ( ts ")" )
+		putConst ( consts tt [ tt . size ( ) -1 ] . token "*" cacheConst ) // function declare, aka callback
+		return true
+	end
+
+	v1 = t1 . token
+	v2 = consts [ v1 ]
+	if v2 != null v1 = v2 end
+
+	t3 = ts . next2 ( )
+	if ! ( t3 . es ( ";" ) )
+		log ( "[w]unknown format for typedef '%s' '%s' at %s:%s" t2 . token t3 . token fn ts . pos ( ) )
+		return true -- go on
+	end
+	putConst ( consts t2 . token v1 cacheConst )
+	return true
+}
+
+private function parseDefineConst1 ( t ts consts fn cacheConst ) {
+	//eg. #define VK_LOD_CLAMP_NONE                 1000.0F
+	if ! ( t . es ( "#" ) ) return false end
+	t1 = ts . next2 ( )
+	if ! ( t1 . es ( "define" ) )
+		ts . pushBack ( t1 )
+		return false
+	end
+	t2 = ts . next2 ( )
+	name = t2 . token
+	t3 = ts . next ( )
+	if t3 . isSpace ( ) && t3 . token . contains ( '\n' ) return true end -- just #define xxx, so ignore here?
+	if t3 . isSpace ( ) t3 = ts . next2 ( ) end
+	value = parseValue ( t3 . token consts )
+	if value == null
+		log ( "[w]cannot parse const %s:%s %s " fn ts . pos ( ) t3 . token )
+		ts . pushBack ( t3 )
+		return true -- go on
+	end
+	putConst ( consts name value cacheConst )
+	return true
+}
+
+function parseStructText ( txt pos ) { -- 
+	deprecated ( )
+	--	log ( "[d]parseStruct(" + txt + ") at " + pos )
+	ss = txt . split ( "\n" )
+	members = [ ]
+	size = 0
+	has8 = 1
+	for ( ss s ) {
+		s = s . trim ( )
+		if s . isEmpty ( ) continue end
+		p1 = s . indexOf ( ";" )
+		if p1 < 0
+			log ( "[w]fail to parse struct at " + pos )
+			return null
+		end
+		comment = s . substring ( p1 + 1 ) . trim ( )
+		s = s [ 0 .. p1 ] . trim ( )
+		others = [ ]
+		cntOthers = [ ]
+		loop {
+			p2 = s . lastIndexOf ( "," )
+			if p2 < 0 break end
+			other = s [ p2 + 1 .. s . length ( ) ] . trim ( )
+			s = s [ 0 .. p2 ] . trim ( )
+			c2 = 1
+			if other . endsWith ( "]" )
+				p3 = other . indexOf ( "[" )
+				c2 = other [ p3 + 1 .. other . length ( ) - 1 ] . trim ( )
+				c2v = G [ "consts" ] [ c2 ]
+				if c2v != null c2 = c2v end
+				c2 = c2 . toInt ( )
+				other = other [ 0 .. p3 ] . trim ( )
+			end
+			cntOthers . add ( c2 )
+			others . add ( other )
+		}
+
+		cnt = 1
+
+		loop { -- [3][4][5] multi array
+			p1 = s . lastIndexOf ( "[" )
+			if p1 >= 0
+				p2 = s . indexOf ( "]" p1 + 1 )
+				c2 = s [ p1 + 1 .. p2 ] . trim ( )
+				c2v = G [ "consts" ] [ c2 ]
+				if c2v != null c2 = c2v end
+				cnt2 = tryNumber ( c2 )
+				//	cnt2 = tryNumber ( s [ p1 + 1 .. p2 ] . trim ( ) )
+				if cnt2 == null
+					log ( "[w]fail to parse struct! " + pos ) --todo
+					return null
+				end
+				s = s [ 0 .. p1 ] . trim ( )
+				cnt = cnt * cnt2
+			else
+				break
+			end
+		}
+		p1 = s . lastIndexOf ( " " )
+		name = s . substring ( p1 + 1 ) . trim ( )
+
+		type = s [ 0 .. p1 ] . trim ( )
+		loop {
+			if name . startsWith ( "*" )
+				name = name [ 1 .. ] . trim ( )
+				type = type + "*" ;
+			else break
+			end
+		}
+
+		gt = guessType ( type pos )
+		st = 0
+		st2 = G [ "struct" ] . get ( type )
+		if st2 != null
+			st = st2 [ "size" ]
+			has8 = _max ( has8 st2 . has8 )
+			size = aligned ( size has8 )
+		else
+			st = sizeof ( type pos )
+			if st >= 8 has8 = 8
+			elseif st >= 4 has8 = 4
+			elseif st >= 2 has8 = 2
+			end
+			size = aligned ( size has8 )
+		end
+		if st == 0
+			log ( "[w]fail to parse struct(unknown type) %s at %s" type pos ) --todo
+			return null
+		end
+		rs = st * cnt
+		members . add ( [ ] . add ( name ) . add ( size ) . add ( gt )
+			. add ( st ) . add ( cnt ) /*. add ( comment )*/ )
+
+		size = size + rs
+		i = 0
+		for ( others other ) { --fixme
+			members . add ( [ ] . add ( other ) . add ( size ) . add ( gt )
+				. add ( st ) . add ( cntOthers [ i ] ) /*. add ( comment )*/ )
+			size = size + st * cntOthers [ i ]
+			i = i + 1
+		}
+	}
+	size = aligned ( size has8 )
+	return { } . put ( "members" members ) . put ( "size" size ) . put ( "has8" has8 )
+}
+
+private function parseStruct1 ( t ts consts fn cacheConst cacheStruct ignore ) {
+	/* eg. typedef struct SDL_Point{
+    int x;
+    int y;} 
+    OR
+    typedef struct _SDL_iconv_t *SDL_iconv_t;
+    OR
+    typedef struct { int value; } SDL_atomic_t;
+    */
+	t1 = ts . next2 ( )
+	if t1 == null return false end
+	if t . es ( "typedef" ) && ! ( t1 . es ( "struct" ) )
+		ts . pushBack ( t1 )
+		return false
+	end
+	if t . es ( "typedef" ) && ( t1 . es ( "struct" ) ) --ok
+	else
+		if t . es ( "struct" ) ts . pushBack ( t1 ) t1 = t
+		else ts . pushBack ( t1 ) return false
+		end
+	end
+
+	str = G [ "struct" ]
+	//	log ( '[d]parsing struct0 :' + ts . pos ( ) )
+	t2 = ts . next2 ( )
+	if t2 . es ( "{" )
+		st1 = parseStructDef ( readUntilStr ( ts "}" ) fn + ":" + ts . pos ( ) ignore )
+		if st1 == null
+			log ( '[d]skip struct3 :' + ts . pos ( ) )
+			return true end
+		t3 = ts . next2 ( )
+		name = t3 . token
+		//		log ( '[d]parse struct1 ' + name )
+		if name == ';' return true
+		else
+			if str [ name ] != null
+				log ( "ignore duplicated struct '%s'" , name )
+				readUntil ( ts ";" )
+				return true
+			end
+		end
+		if ! ( ts . peek2 ( ) . es ( ";" ) )
+			log ( '[w]skip struct %s %s' name ts . peek2 ( ) . token )
+			return true
+		end
+		ts . confirmNext ( ";" fn + ":" + ts . pos ( ) ) ;
+		str [ name ] = st1
+		cacheStruct . add ( name + ":" + strString ( st1 ) )
+		return true
+	else
+		name = t2 . token
+		//		log ( '[d]parse struct2 ' + name )
+		if str [ name ] != null
+			log ( "ignore duplicated struct '%s'" , name )
+			readUntil ( ts "}" )
+			return true
+		end
+		t3 = ts . next2 ( )
+		if t3 . es ( "*" )
+			t4 = ts . next2 ( )
+			putConst ( consts t4 . token "*" cacheConst )
+			return true
+		end
+		if t3 . es ( "{" )
+			st1 = parseStructDef ( readUntilStr ( ts "}" ) fn + ":" + ts . pos ( ) ignore )
+			if st1 == null return true end
+			n2 = ts . next2 ( )
+			if ! n2 . es ( ';' ) name = n2 . token ts . next2 ( ) end
+			str [ name ] = st1
+			cacheStruct . add ( name + ":" + strString ( st1 ) )
+		else
+			-- fuck off
+		end
+	end
+	return true
+}
+private function strString ( st ) {
+	return format ( "{size:%s has8:%s members:%s}" st [ "size" ] st . has8 "" + st [ "members" ] )
+}
+private function readUntilTokens ( ts s ) {
+	txt = [ ]
+	loop {
+		t = ts . next2 ( )
+		if t == null || t . es ( s ) break end
+		txt . add ( t )
+	}
+	return txt
+}
+private function readUntilStr ( ts s ) {
+	txt = [ ]
+	loop {
+		t = ts . next ( )
+		if t == null || t . es ( s ) break end
+		txt . add ( t . token )
+	}
+	return txt . join ( "" )
+}
+private function parseInclude1 ( t ts funcs chars pre ignore cacheFunc cacheConst cacheStruct headerFuncTypeMap custParser ) {
+	if ! ( t . es ( "#" ) ) return false end
+	t1 = ts . next2 ( )
+	if ! ( t1 . es ( "include" ) )
+		ts . pushBack ( t1 )
+		return false
+	end
+
+	t2 = ts . next2 ( )
+	fn = t2 . token
+	if fn . startsWith ( "<" ) || fn . startsWith ( '"' )
+		fn = fn [ 1 .. fn . length ( ) - 1 ]
+	end
+	if fn == "" log ( "[?]include what? at " + ts . pos ( ) + " " + t2 ) return true end
+
+	parseHeader ( fn funcs chars pre ignore cacheFunc cacheConst cacheStruct
+		headerFuncTypeMap custParser )
+	return true
+}
+private function readUntilRN ( ts ) {
+	loop {
+		t = ts . next ( )
+		if t == null || t . token . contains ( "\n" ) break end
+	}
+}
+private function parseEnum1 ( t ts consts fn cacheConst ) {
+	/*eg.  typedef enum VkResult {
+    VK_SUCCESS = 0,
+    VK_NOT_READY = 1,*/
+	t1 = ts . next2 ( )
+	if t1 == null return false end
+	if t . es ( "typedef" ) && ! ( t1 . es ( "enum" ) )
+		ts . pushBack ( t1 )
+		return false
+	end
+	if t . es ( "typedef" ) && ( t1 . es ( "enum" ) ) --ok
+	else
+		if t . es ( "enum" )
+			ts . pushBack ( t1 )
+			t1 = t
+		else ts . pushBack ( t1 ) return false
+		end
+	end
+	t2 = ts . next2 ( )
+	enumName = t2 . token
+	if enumName != "{"
+		if ! ( ts . peek2 ( ) . es ( '{' ) ) return false end
+		ts . confirmNext ( "{" , "at " + fn + ":" + ts . pos ( ) )
+	else
+		enumName = ""
+	end
+	p = 0
+	loop {
+		t = ts . next2 ( )
+		name = t . token
+		if t . es ( "#" )
+			readUntilRN ( ts )
+			continue
+		end
+		t2 = ts . next2 ( )
+		if t2 . es ( "," )
+			putConst ( consts name p cacheConst )
+			p = p + 1
+		else
+			if ! ( t2 . es ( "=" ) )
+				if t2 . es ( "}" )
+					putConst ( consts name p cacheConst )
+					break end
+				log ( "[e]bad format %s (%s) at %s" enumName t2 . token ts . pos ( ) )
+				return true -- can go on?
+			end
+			t3 = ts . next2 ( )
+			value = parseValue ( t3 . token consts )
+			if value != null
+				p = value
+				putConst ( consts name p cacheConst )
+				p = p + 1
+			end
+			t4 = ts . next2 ( )
+			if t4 . es ( "," ) continue end
+			if t4 . es ( "}" ) break end
+			log ( "[w]unexpected token %s for %s at %s:%s" t4 . token enumName fn ts . pos ( ) )
+			readUntil ( ts "}" )
+			break
+		end
+	}
+	t2 = ts . next2 ( )
+	if t2 . token != ';' enumName = t2 . token ts . next2 ( ) end
+	if enumName == '' return true end
+	putConst ( consts enumName "enum" cacheConst )
+	return true
+}
+private function parseValue ( s consts ) {
+	n = tryNumber ( s )
+	if n == null
+		n = consts [ s ]
+	end
+	return n
+}
+function putConst ( m k v cacheConst ) {
+	if m . containsKey ( k )
+		log ( "[d]skip duplicated define " + k )
+	else
+		m [ k ] = v
+		cacheConst . add ( k + ":" + v )
+	end
+}
+function findIncludeFile ( fn ) {
+	f = FileObj ( fn )
+	if f . isFile ( ) return f . getAbsolutePath ( ) end
+	log ( 'find %s in %s' fn '' + G [ "includePath" ] )
+	for ( G [ "includePath" ] path ) {
+		f = FileObj ( path + '/' + fn )
+		if f . isFile ( ) return f . getAbsolutePath ( ) end
+	}
+	return findFileInSearchPath ( fn )
+}
+
+function parseHeaders ( files pre ignore chars cacheText headerFuncTypeMap custParser ) {
+	--	if ! ( dir . startsWith ( "/" ) ) 
+	--		dir = G [ "SCRIPT_DIR" ] + dir
+	--	end
+	funcs = [ ]
+	consts = G [ "consts" ]
+	cacheFunc = [ ]
+	cacheConst = [ ]
+	cacheStruct = [ ]
+	for ( files fn ) {
+		if ! ( fn . endsWith ( ".h" ) || fn . endsWith ( ".c" ) ) continue end
+		cnt1 = funcs . size ( )
+		cnt1c = cacheConst . size ( )
+		cnt1s = cacheStruct . size ( )
+		parseHeader ( fn funcs chars pre ignore cacheFunc cacheConst cacheStruct headerFuncTypeMap custParser )
+		cnt2 = funcs . size ( )
+		cnt2c = cacheConst . size ( )
+		cnt2s = cacheStruct . size ( )
+		log ( "add funcs=%d consts=%d struct=%d %s" cnt2 - cnt1 cnt2c - cnt1c cnt2s - cnt1s fn )
+	}
+	//	log ( "found %d functions in %s (%,d chars)" funcs . size ( ) ""+files chars [ 0 ] )
+	cacheText . add ( "{ func: {" )
+	. addAll ( cacheFunc )
+	. add ( "} const: {" )
+	. addAll ( cacheConst )
+	. add ( "} struct: {" )
+	. addAll ( cacheStruct )
+	. add ( "} }" )
+	return funcs
+}
+
+private function parseHeader ( fn funcs chars pre ignore cacheFunc cacheConst cacheStruct headerFuncTypeMap custParser ) {
+	if G [ "included" ] . contains ( fn ) return null
+	else G [ "included" ] . add ( fn )
+	end
+	fn2 = findIncludeFile ( fn )
+	if fn2 == null log ( "[e]cannot find header file " + fn ) return null end
+	fn = fn2
+	log ( "[d]parsing " + fn )
+	txt = file ( fn )
+	chars [ 0 ] = chars [ 0 ] + txt . length ( )
+	-- enums = G [ "enums" ]
+	consts = G [ "consts" ]
+	ts = CTokens ( txt )
+	loop {
+		t = ts . next2 ( )
+		//	log ( "t=" + t )
+		if t == null break end
+		c1 = false
+		for ( custParser cp ) {
+			if $cp ( t ts cacheFunc cacheConst cacheStruct ) c1 = true end
+		}
+		if c1 continue end
+		if parseInclude1 ( t ts funcs chars pre ignore cacheFunc cacheConst cacheStruct
+				headerFuncTypeMap custParser ) continue end
+		if parseEnum1 ( t ts consts fn cacheConst ) continue end
+		if parseStruct1 ( t ts consts fn cacheConst cacheStruct ignore ) continue end
+		if parseTypedef1 ( t ts consts fn cacheConst ) continue end
+		if parseDefineConst1 ( t ts consts fn cacheConst ) continue end
+
+		if testPre ( t ts pre )
+			retTypeAndName = readRetTypeAndName ( ts ignore )
+
+			params = [ ]
+			loop {
+				readOneParam ( ts params ignore )
+				k = ts . next2 ( )
+				if k == null return 0 end
+				if k . es ( ")" ) break end
+				if ! ( k . es ( "," ) ) return 0 end
+			}
+			func = [ ]
+			func . add ( retTypeAndName )
+			func . add ( params )
+
+			x = func
+			tf = x [ 0 ]
+			if tf . size ( ) == 0 continue end
+			hf = tf [ tf . size ( ) - 1 ]
+			-- add to G
+			if headerFuncTypeMap . containsKey ( hf )
+				log ( "[w]skip duplicated lib func=" + hf )
+			else
+				--		headerFuncMap . put ( hf , x )
+				sig = shortenTypes ( toTypes ( x ts . pos ( ) ) )
+				headerFuncTypeMap [ hf ] = sig
+				cacheFunc . add ( hf + ":'" + sig + "'" )
+				funcs . add ( hf )
+			end
+		end
+	}
+}
+private function toTypes ( header pos ) {
+	ret = [ ]
+	ret . add ( getMemberType ( header [ 0 ] pos ) )
+	for ( header [ 1 ] x ) {
+		t = getMemberType ( x pos )
+		if ! ( t . equals ( "void" ) )
+			ret . add ( t )
+		end
+	}
+	return ret
+}
+private function getMemberType ( x pos ) {
+	-- notUsed()
+	if x . contains ( "*" ) return "*" end -- pointer
+	if x . size ( ) == 1 return guessType ( x [ 0 ] pos ) end
+	ret = guessType ( x [ x . size ( ) -2 ] pos )
+	if ! ( ret . equals ( "?" ) ) return ret end
+	return guessType ( x [ x . size ( ) -1 ] pos ) // name could be ommitted
+}
+private function shortenTypes ( types ) {
+	ret = [ ]
+	for ( types t ) { ret . add ( "" + t [ 0 ] ) }
+	return ret . join ( "" )
+}
+private function readRetTypeAndName ( ts ignore ) {
+	ret = [ ]
+	loop {
+		t = ts . next2 ( )
+		if t == null break end
+		if ignore . contains ( t . token ) continue end
+		if t . es ( "(" ) break end
+		ret . add ( t . token )
+	}
+	return ret
+}
+private function readUntil ( ts s ) {
+	loop {
+		t = ts . next2 ( )
+		//		log ( "t2=" + t )
+		if t == null || t . es ( s ) break end
+	}
+}
+private function readOneParam ( ts params ignore ) {
+	ps = [ ]
+	loop {
+		pk = ts . next2 ( )
+		if pk == null return false end
+		if ignore . contains ( pk . token ) continue end
+		if pk . es ( ")" ) || pk . es ( "," ) ts . pushBack ( pk ) break end
+		ps . add ( pk . token )
+	}
+	if ! ( ps . isEmpty ( ) )
+		params . add ( ps )
+		return true
+	end
+	return false
+}
+private _max ( a b ) { return a > b return a else return b end }

@@ -1,0 +1,36 @@
+#!/usr/bin/env textfrog
+/* find out compiled c source in actually linux src tree
+done copied/skipped 17,200/17,489 .c files 431,863,655/245,935,513 bytes in 1,591/1,992 dirs
+*/
+runnable main args {
+	srcDir = '/opt/linux/linux-6.12.5/'
+	outDir = '/ram/linux_inscope/'
+	srcDirLen = srcDir . length ( )
+	cnt = 0 ts = 0 ds = set ( [ ] )
+	cnt2 = 0 ts2 = 0 ds2 = set ( [ ] )
+	filewalk srcDir fn 10 {
+		if ! fn . endsWith ( '.c' ) continue end
+		if fn . endsWith ( '.mod.c' ) continue end
+		fn2 = fn [ 0 .. -2 ] + 'o'
+		if ! FileObj ( fn2 ) . isFile ( )
+			cnt2 += 1
+			f1 = FileObj ( fn )
+			ts2 += f1 . length ( )
+			ds2 . add ( f1 . getParent ( ) )
+			continue end
+		if ! fn . startsWith ( srcDir ) log ( "unexpected path %s" fn ) return 1 end
+		fn3 = outDir + fn [ srcDirLen .. ]
+		f3 = FileObj ( fn3 )
+		f3 . getParentFile ( ) . mkdirs ( )
+		ds . add ( f3 . getParent ( ) )
+		if ! f3 . isFile ( )
+			ret = execp ( "." "cp" fn fn3 )
+			if ret [ 2 ] != 0 log ( "cp failed [%s]->[%s]" fn fn3 ) return 2 end
+		end
+		cnt += 1
+		ts += f3 . length ( )
+	}
+	log ( "done copied/skipped %,d/%,d .c files %,d/%,d bytes in %,d/%,d dirs"
+		cnt cnt2 ts ts2 ds . size ( ) ds2 . size ( ) )
+}
+

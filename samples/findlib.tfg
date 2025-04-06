@@ -1,0 +1,22 @@
+#!/usr/bin/env textfrog
+paths = array ( "/usr/" "/lib" "/lib64" G . systemEnv . neoebuild_base + '/.textfrog/lib' )
+
+runnable function main ( args ) {
+	name = args [ 0 ] . trim ( ) . toLowerCase ( )
+	ret = [ ] . copy ( )
+	cnt = 0
+	for ( paths path ) {
+		filewalk ( path fn 5 ) {
+			if fn . toLowerCase ( ) . contains ( name ) then ret . add ( fn ) end
+			cnt = cnt + 1
+		}
+	}
+	log ( "find %d results in %,d files" ret . size ( ) cnt )
+	if ret . size ( ) > 0 then
+		for ( ret fn ) {
+			log ( '%s\t%s' fn formatDate ( '' FileObj ( fn ) . lastModified ( ) ) )
+		}
+	end
+}
+
+

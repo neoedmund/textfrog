@@ -1,0 +1,54 @@
+#!/usr/bin/env textfrog
+/*
+unpack.tfg /data/data/text/jp-book.tar.zst
+/ram/unpack/jp-book
+./txt2utf8.tfg
+*/
+include ( 'util.tfg' )
+include ( 'zstdres.tfg' )
+runnable main {
+	cl = loadJars ( [ dist ] )
+	G . Guess = JavaClass ( 'neoe.txt.GuessEncoding' cl )
+	doTransEnc ( '/ram/unpack/jp-book' )
+	testFile ( '/ram/unpack/jp-book/1/[推荐]宫部みゆき作品集/宮部みゆき-鳩笛草.txt.zst' )
+}
+func testFile ( fn ) {
+	s = filezst ( fn )
+	log ( '[%s]' s )
+}
+
+func doTransEnc ( dir ) {
+	ENC = false
+	test = 10 cnt = 0
+	t1 = 0 t2 = 0
+	filewalk dir fn 30 {
+		f = FileObj ( fn )
+		if ! f . isFile ( ) continue end
+		if ! fn . endsWith ( '.txt' )
+			if fn . endsWith ( '.jpg' ) || fn . endsWith ( '.png' ) f . delete ( ) end
+			log ( 'skip ' + fn )
+			continue
+		end
+		if ENC
+			enc = Guess . guessFile ( fn )
+			enc2 = enc . toLowerCase ( )
+			if enc2 != 'utf8' && enc2 != 'utf-8'
+				log ( 'trans %s %s' enc fn )
+				txt = file ( fn enc )
+				save ( txt fn )
+			end
+		end
+		checkBash ( '/tmp' format ( 'zstd -f -19 "%s" -o "%s.zst"' fn fn ) )
+		f2 = FileObj ( fn + '.zst' )
+		s1 = f . length ( )
+		t1 += s1
+		s2 = f2 . length ( )
+		t2 += s2
+		log ( '%,d -> %,d %.1f%% %s' s1 s2 s2 * 100.0 / s1 fn )
+		f . delete ( )
+		cnt += 1
+		--	if cnt > test break end
+	}
+	log ( 'done %,d files %,d -> %,d %.1f%% ' cnt t1 t2 t2 * 100.0 / t1 )
+}
+

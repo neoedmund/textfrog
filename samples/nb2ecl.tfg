@@ -1,0 +1,199 @@
+#!/usr/bin/env textfrog
+/*
+tfg nb2ecl
+*/
+runnable scan args {
+	initTemp ( )
+	G . maxlv = 10
+	G . prjs = [ ]
+	G . LAB = '/opt/lab'
+	G . f1 = '.project'
+	G . f2 = '.classpath'
+	G . names = set ( [ ] )
+	G . gens = [ ]
+	G . DEPS = { }
+	G . CPS = { }
+	G . livepool = { }
+	targets = [ ]
+	if args . size ( ) == 0 targets . add ( LAB ) else targets . addAll ( args ) end
+	if targets . contains ( LAB )
+		G . livepool = parseData ( file ( LAB + '/livepool.conf' ) )
+	end
+	for targets target {
+		scanDir ( target )
+	}
+	log ( 'prjs List %s' '' + prjs )
+	cnt = prjs . size ( )
+	cnts = [ 0 0 ]
+	for prjs target i {
+		check ( target i + 1 cnt cnts )
+	}
+	log ( 'build success %,d fail %,d' cnts )
+
+	log ( 'gens List %s' '' + gens )
+	for gens target {
+		genEcl2 ( target )
+	}
+}
+func scanDir ( target ) {
+	if ! FileObj ( target ) . isDirectory ( ) log ( 'not dir, skip ' + target ) return 0 end
+	log ( 'scanning %s' target )
+	walk ( target 0 )
+}
+func walk ( target lv ) {
+	found = false
+	if FileObj ( target + '/mybuild' ) . isFile ( )
+		prjs . add ( target )
+		found = true
+	end
+	if lv >= G . maxlv return 0 end
+	for FileObj ( target ) . listFiles ( ) f {
+		if f . isDirectory ( )
+			if found && ( f . getName ( ) == 'src' ) continue end
+			walk ( f . getAbsolutePath ( ) lv + 1 )
+		end
+	}
+}
+func check ( target i cnt cnts ) {
+	live = false
+	if target . startsWith ( LAB )
+		name = target [ LAB . length ( ) + 1 .. ]
+		live = livepool . containsKey ( name )
+	end
+	name2 = FileObj ( target ) . getName ( )
+	dupName = names . contains ( name2 )
+	names . add ( name2 )
+
+	hasEcl = FileObj ( target + '/' + f1 ) . isFile ( )
+	&& FileObj ( target + '/' + f2 ) . isFile ( )
+
+	ret = execp ( target 'nb' 'mybuild' )
+	buildFail = ret [ 2 ] != 0
+	cnts [ buildFail ? 1 : 0 ] += 1
+
+	if ! buildFail // && ! hasEcl
+		genEcl ( target )
+	else
+		log ( 'check fail:\n %s] nb mybuild' target )
+		FileObj ( target + '/' + f1 ) . delete ( )
+		FileObj ( target + '/' + f2 ) . delete ( )
+		//	error('stop')
+	end
+
+	log ( 'Found prj(%d/%d): [%s]%s%s%s%s%s' i cnt target
+		live ? '' : ' (Not Live)'
+		hasEcl ? '' : ' (No Eclipse)'
+		dupName ? ' (dup name!)' : ''
+		buildFail ? ' (build fail!)' : ''
+		live && buildFail ? ' (live fail!)' : '' )
+}
+func genEcl ( target ) {
+	log ( 'genEcl pre %s' target )
+	mb = parseData ( file ( target + '/mybuild' ) )
+	if mb . prjs == null || mb . prjs . size ( ) < 1 log ( '[w]no prj in mybuild [%s]' target )
+		return 0 end
+	first = mb . prjs [ 0 ]
+	name1 = FileObj ( target ) . getName ( )
+	name2 = first [ 0 ]
+	if name1 != name2 log ( 'mybuild prj[%s] name not match [%s|%s]' target name1 name2 ) end
+	if first . size ( ) >= 3
+		conf = first [ 2 ]
+		dep = conf . dep
+		if dep != null && dep . size ( ) > 0
+			DEPS [ name2 ] = dep
+		end
+		cp = conf . cp
+		if cp != null && cp . size ( ) > 0
+			CPS [ name2 ] = cp
+		end
+	end
+	gens . add ( target )
+}
+func addDep ( target deps cps d ) {
+	if deps . contains ( d ) return 0 end
+	deps . add ( d )
+	dep = DEPS [ d ]
+	cp = CPS [ d ]
+	if dep != null for dep x { addDep ( target deps cps x ) } end
+	if cp != null addCp ( target cps cp ) end
+}
+func addCp ( target cps cp0 ) {
+	t2 = FileObj ( target ) . getCanonicalPath ( )
+	if ! t2 . endsWith ( '/' ) t2 = t2 + '/' end
+	log ( '[d] t2=%s' t2 )
+	for cp0 cp {
+		fn = cp
+		if ! FileObj ( fn ) . exists ( ) fn = target + cp end
+		if ! FileObj ( fn ) . exists ( ) log ( 'cp not exists:[%s]' cp ) return 0 end
+		if FileObj ( fn ) . isFile ( ) cps . add ( cp ) log ( '[d]add file %s' cp )
+		else log ( '[d]add dir %s' cp )
+			filewalk fn f 10 {
+				if FileObj ( f ) . isFile ( ) && f . endsWith ( '.jar' )
+					if f . startsWith ( t2 ) f = f [ t2 . length ( ) .. ] end
+					cps . add ( f )
+				end
+			}
+		end
+	}
+}
+func genEcl2 ( target ) {
+	mb = parseData ( file ( target + '/mybuild' ) )
+	if mb . prjs == null || mb . prjs . size ( ) < 1 log ( '[w]no prj in mybuild [%s]' target )
+		return 0 end
+	first = mb . prjs [ 0 ]
+	name1 = FileObj ( target ) . getName ( )
+	name2 = first [ 0 ]
+
+	deps = set ( [ ] )
+	cps = set ( [ ] )
+	dep = DEPS [ name2 ]
+	cp = CPS [ name2 ]
+	if dep != null for dep d { addDep ( target deps cps d ) } end
+	if cp != null addCp ( target cps cp ) end
+	ss = [ ]
+	for cps x {
+		ss . add ( format ( tmp2b x ) )
+	}
+	for deps x {
+		ss . add ( format ( tmp2a x ) )
+	}
+	s2 = format ( tmp2 ss . join ( '\n' ) )
+	save ( s2 target + '/' + f2 )
+	s1 = format ( tmp1 name2 )
+	save ( s1 target + '/' + f1 )
+	log ( '[gen eclipse][%s]' target )
+}
+
+func initTemp {
+	G . tmp1 = `<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>%s</name>
+	<comment></comment>
+	<projects>
+	</projects>
+	<buildSpec>
+		<buildCommand>
+			<name>org.eclipse.jdt.core.javabuilder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+	</buildSpec>
+	<natures>
+		<nature>org.eclipse.jdt.core.javanature</nature>
+	</natures>
+</projectDescription>`
+	G . tmp2 = `<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER">
+		<attributes>
+			<attribute name="module" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="output" path="bin"/>
+	%s
+</classpath>`
+	G . tmp2a = `<classpathentry combineaccessrules="false" kind="src" path="/%s"/>`
+	G . tmp2b = `<classpathentry kind="lib" path="%s"/>`
+}
+

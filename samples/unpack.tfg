@@ -1,0 +1,124 @@
+#!/usr/bin/env textfrog
+include ( 'util.tfg' )
+include ( 'ffdown.tfg' )
+runnable func main ( args ) {
+	unpack ( args )
+}
+func unpack ( args ) {
+	G . type = 'tar'
+	fn0 = args [ 0 ]
+	if fn0 == "--last"
+		fn0 = getLastDownload ( )
+	end
+	fn = fn0
+	p1 = fn . lastIndexOf ( '/' )
+	if p1 > 0
+		fn = fn [ p1 + 1 .. ]
+	end
+
+	parseArgs ( args 1 )
+	type = G . type
+	p1 = fn . lastIndexOf ( '.tar' )
+	if p1 > 0
+		fn = fn [ 0 .. p1 ]
+	elseif fn . endsWith ( '.zip' ) || fn . endsWith ( '.apk' )
+		type = 'zip'
+		fn = fn [ 0 .. -5 ]
+	elseif fn . endsWith ( '.7z' )
+		type = '7z'
+		fn = fn [ 0 .. -4 ]
+	elseif fn . endsWith ( '.jar' )
+		type = '7z'
+		fn = fn [ 0 .. -5 ]
+	elseif fn . endsWith ( '.deb' )
+		type = 'deb'
+		fn = fn [ 0 .. -5 ]
+	elseif fn . endsWith ( '.rar' )
+		type = 'rar'
+		fn = fn [ 0 .. -5 ]
+	end
+	
+	dir = '/ram/unpack/' + fn
+	if G . todir != null
+		dir = todir
+	end
+	FileObj ( dir ) . mkdirs ( )
+	if type == 'zip'
+		if G . encoding != null
+			checkExec ( exec ( [ nb '-run' myunzip '-e' ] G . encoding '-o' dir fn0 ) )
+		else
+			ret = ( exec ( [ nb '-run' myunzip '-e' SJIS '-o' ] dir fn0 ) )
+			if ret [ 2 ] != 0
+				ret = ( exec ( [ nb '-run' myunzip '-e' UTF8 '-o' ] dir fn0 ) )
+				if ret [ 2 ] != 0
+					checkExec ( exec ( [ nb '-run' myunzip '-e' GBK '-o' ] dir fn0 ) )
+				else log ( 'ok:' + ret )
+				end
+			else log ( 'ok:' + ret )
+			end
+		end
+	elseif type == '7z'
+		checkExec ( exec ( [ 7z x "-y" ] , fn0 , '-o' + dir ) )
+	elseif type == 'deb'
+		checkExec ( exec ( 'dpkg' '-x' fn0 '/ram/os' ) )
+	elseif type == 'rar'
+		FileObj ( dir ) . mkdirs ( )
+		checkExec ( execp ( dir '/opt/rar/unrar' 'e' '-y' fn0 ) )
+	else // others
+		checkExec ( exec ( [ tar xf ] , fn0 , '-C' + dir ) )
+	end
+	if ! ( FileObj ( dir ) . isDirectory ( ) )
+		dir2 = findDir ( '/ram/' fn )
+		if dir2 != null
+			dir = dir2
+		end
+	end
+	if ( FileObj ( dir ) . isDirectory ( ) )
+		loop {
+			fs = FileObj ( dir ) . listFiles ( )
+			if fs . size ( ) == 1 && fs [ 0 ] . isDirectory ( )
+				dir = fs [ 0 ] . getAbsolutePath ( )
+			else break
+			end
+		}
+		checkExec ( exec ( [ ls '-l' ] , dir ) )
+		log ( dir )
+		return dir
+	else
+		log ( "cannot find " + dir )
+		return 0
+	end
+}
+private func findDir ( base fn ) {
+	fs = FileObj ( base ) . listFiles ( )
+	for ( fs f ) {
+		if f . isDirectory ( )
+			name = f . getName ( )
+			if name . startsWith ( fn ) || fn . startsWith ( name )
+				return base + name
+			end
+		end
+	}
+	return null
+}
+func parseArgs ( args a ) {
+	G . todir = null
+	for {
+		if a >= args . size ( ) return 0 end
+		k = args [ a ]
+		if k == '-e'
+			G . encoding = args [ a + 1 ]
+			a += 1
+		elseif k == '-t'
+			G . type = args [ a + 1 ]
+			a += 1
+		elseif k == '-d'
+			G . todir = args [ a + 1 ]
+			a += 1
+		else
+			error ( 'unknow option:' + args [ a .. -1 ] )
+		end
+		a += 1
+	}
+}
+

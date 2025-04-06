@@ -1,0 +1,237 @@
+/*
+suck compilcated process is too much for tfg,
+more logic clear one should be used.
+*/
+private function readTokenUntil ( k ts ts2 ignore ) {
+	loop {
+		s = ts . next2 ( )
+		//	log('[d]s4=%s' s)
+		if s == null || s . es ( k ) || s . es ( '}' ) break end
+		if ignore . contains ( s . token ) continue end
+		if s . es ( '#' ) skipLine ( ts ) continue end
+		rep = G . consts [ s . token ]
+		if rep == '#' || rep == '' /*bugfixed*/ continue end
+		//log ( '[d]add %s' s . token )
+		ts2 . add ( s . token )
+	}
+	//log ( '[d]readTokenUntil end %s ' '' + ts2 )
+}
+private function skipLine ( ts ) {
+	loop {
+		t = ts . next ( )
+		if t == null || t . token . contains ( '\n' ) return 0 end
+	}
+}
+private function indexOf ( ts2 key ) {
+	for ( ts2 s i ) { if s == key return i end }
+	return -1
+}
+private function lastIndexOf ( ts2 key ) {
+	len = ts2 . size ( )
+	for ( len i ) { p = len - i -1
+		if ts2 [ p ] == key return p end
+	}
+	return -1
+}
+function aligned ( st has8 ) {
+	if has8 == null || has8 == 1 return st end
+	if st % has8 != 0 st = has8 * ( st / has8 + 1 ) end
+	return st
+}
+private function expect ( s k ) {
+	if s != k error ( "expect %s but got %s" k s ) end
+}
+private function getArraySize ( ts pos ) {
+	cnt = 1
+	loop {
+		expect ( ts [ 0 ] '[' )
+		p = indexOf ( ts ']' )
+		if p != 2
+			log ( '[w] cannot parse size from "%s"' ts [ 1 .. p ] . join ( ' ' ) )
+			return null
+		end
+		k = ts [ 1 ]
+		c2v = G . consts [ k ]
+		if c2v != null k = c2v end
+		cnt2 = tryNumber ( k )
+		if cnt2 == null
+			log ( "[w]fail to parse struct! after " + pos ) --todo
+			return null
+		end
+		cnt = cnt * cnt2
+		ts = ts [ 3 .. ]
+		if ts . size ( ) == 0 break end
+	}
+	return cnt
+}
+private function getArraySize2 ( ts2 pos ) {
+	p1 = indexOf ( ts2 "[" )
+	if p1 >= 0
+		cnt = getArraySize ( ts2 [ p1 .. ] pos )
+		ts2 = ts2 [ 0 .. p1 ]
+		return [ ] . add ( cnt ) . add ( ts2 )
+	else
+		return [ ] . add ( 1 ) . add ( ts2 )
+	end
+}
+function guessType ( s pos ) {
+	--	log ( "[d]p1=" + s )
+	if s . endsWith ( "*" ) return "*" end
+
+	if G [ "struct" ] != null && G [ "struct" ] . containsKey ( s ) return s end
+
+	if s . startsWith ( 'enum ' ) return "int" end
+	v = G [ "consts" ] [ s ]
+	if "enum" == v return "int" end
+
+	if v != null s = "" + v end
+
+	if s . endsWith ( "*" ) return "*" end
+
+	if s . startsWith ( "unsigned " ) s = s [ "unsigned " . length ( ) .. s . length ( ) ] end
+	if s . startsWith ( "signed " ) s = s [ "signed " . length ( ) .. s . length ( ) ] end
+
+	s = s . toLowerCase ( )
+	if [ void byte char short int long float double ] . contains ( s ) return s end
+	if s . contains ( "8" ) return "byte" end
+	if s . contains ( "16" ) return "short" end
+	if s . contains ( '32' ) return "int" end
+	if s . contains ( '64' ) return "long" end
+	if s . contains ( 'long' ) return "long" end
+	if s == "unsigned" return "int" end
+	if s == "signed" return "int" end
+	log ( "[w]cannot guesstype:%s after %s" s pos )
+	return "?"
+}
+
+private function guessType2 ( ts pos ) { --param is list
+	if ts . contains ( '*' ) return '*' end
+	if ts . size ( ) != 1 log ( '[w] cannot guess type2 "%s" near %s' '' + ts pos ) return '?' end
+	k0 = ts [ ts . size ( ) - 1 ]
+	--	log ( "[d]k0=" + k0 )
+	//
+	k = ts . join ( ' ' ) // ts [ ts . size ( ) - 1 ]
+	--	log ( "[d]k1=" + k )
+	v = guessType ( k pos )
+	--	log ( "[d]v=" + v )
+	return v
+}
+
+function sizeof ( type pos ) {
+	if type . endsWith ( "*" ) return 8 end
+
+	st = G [ "struct" ] . get ( type )
+	if st != null return st . get ( "size" ) end
+
+	s = type
+	v = G [ "consts" ] [ s ]
+	if "enum" == G [ "consts" ] [ s ] return 4 end
+	if v != null s = v end
+
+	if s . contains ( "8" ) return 1 end
+	if s . contains ( "16" ) return 2 end
+	if s . contains ( '32' ) return 4 end
+	if s . contains ( '64' ) return 8 end
+
+	if s . startsWith ( "unsigned " ) s = s [ "unsigned " . length ( ) .. s . length ( ) ] end
+	if s . startsWith ( "signed " ) s = s [ "signed " . length ( ) .. s . length ( ) ] end
+
+	return switch s {
+		"char" "byte" -> { yield 1 }
+		"short" -> { yield 2 }
+		"int" "float" "unsigned" "signed" -> { yield 4 }
+		"long" "double" "*" -> { yield 8 }
+		-> { log ( "unknown type %s'%s' in struct to determine size near %s" type s pos )
+			yield 0 }
+	}
+}
+private function split ( ts k ) {
+	ret = [ ]
+	buf = [ ]
+	for ( ts s ) {
+		if s == k
+			if ! ( buf . isEmpty ( ) )
+				ret . add ( buf )
+				buf = [ ]
+			end
+		else
+			buf . add ( s )
+		end
+	}
+	if ! ( buf . isEmpty ( ) )
+		ret . add ( buf )
+	end
+	return ret
+}
+
+function parseStructDef ( txt pos ignore ) { -- for user write one
+	ts = CTokens ( txt )
+	//	log ( '[d]parse struct def [%s]' txt )
+	members = [ ]
+	size = 0
+	has8 = 1
+	loop {
+		s = ts . next2 ( )
+		if s == null || s . es ( '}' ) break end
+		ts . pushBack ( s )
+		ts2 = [ ]
+		readTokenUntil ( ';' ts ts2 ignore ) -- ts2 is one sentence
+	//	log ( 'ts2=%s ignore=%s' '' + ts2 '' + ignore )
+		if ts2 . isEmpty ( ) break end
+		p1 = indexOf ( ts2 ',' )
+
+		others = [ ]
+		cntOthers = [ ]
+		if p1 >= 0
+			others = ts2 [ p1 + 1 .. ]
+			ts2 = ts2 [ 0 .. p1 ]
+		end
+
+		cnt = 1
+
+		r2 = getArraySize2 ( ts2 pos )
+		cnt = r2 [ 0 ]
+		ts2 = r2 [ 1 ]
+
+		if cnt == null return null end --fail
+		name = ts2 [ ts2 . size ( ) -1 ]
+
+		gt = guessType2 ( ts2 [ 0 .. ts2 . size ( ) -1 ] pos )
+		if gt == null return null end
+
+		st = 0
+		stb = G . struct [ gt ]
+		if stb != null
+			st = stb . size
+			has8 == _max ( stb . has8 has8 ) size = aligned ( size has8 )
+		else
+			st = sizeof ( gt pos )
+			if st >= 8 has8 = 8
+			elseif st >= 4 has8 = 4
+			elseif st >= 2 has8 = 2
+			end
+			size = aligned ( size has8 )
+		end
+		if st == 0
+			log ( "[w]fail to parse struct(unknown type) %s at %s" ts2 . join ( ' ' ) pos ) --todo
+			return null
+		end
+		rs = st * cnt
+		members . add ( [ ] . add ( name ) . add ( size ) . add ( gt )
+			. add ( st ) . add ( cnt ) )
+
+		size = size + rs
+		for ( split ( others ',' ) other i ) {
+			r2 = getArraySize2 ( other pos )
+			cntOther = r2 [ 0 ]
+			other = r2 [ 1 ]
+			if cntOther==null || cnt == null return null end --fail
+			members . add ( [ ] . add ( other . join ( '?' ) ) . add ( size ) . add ( gt )
+				. add ( st ) . add ( cntOther ) )
+			size = size + st * cntOther
+		}
+	}
+	size = aligned ( size has8 )
+	return { } . put ( "members" members ) . put ( "size" size ) . put ( "has8" has8 )
+}
+private _max ( a b ) { if a > b return a else return b end }

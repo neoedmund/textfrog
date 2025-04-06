@@ -1,0 +1,45 @@
+#!/usr/bin/env textfrog
+/*
+touch /home/neoe/nodisp
+rm /home/neoe/nodisp
+*/
+include ( 'util.tfg' )
+runnable main ( args ) { -- play all media in dir
+	dir = args [ 0 ]
+	loops = 999
+	if args . size ( ) > 1 loops = toInt ( args [ 1 ] ) end
+	ms = [ ]
+	thread ( -> {
+			filewalk ( dir fn 4 ) {
+				if fn . endsWith ( ".jpg" ) continue end
+				ret = tryBash ( dir "ffprobe '" + fn + "'" )
+				ok = ret [ 2 ]
+				if ok == 0 ms . add ( fn ) end
+			}
+			ms . add ( "" )
+			log ( "scan finished" )
+		} )
+
+	x = log ( 'ffplay dir %s' dir )
+	x . addTime = true
+	// ms . sort ( )
+	//	log ( 'find %,d media, loops %,d\n[%s]' ms . size ( ) loops ms . join ( '\n' ) )
+	loop {
+		if ms . isEmpty ( )
+			sleep ( 100 )
+		else
+			fn = ms . removeAt ( 0 )
+			if fn == "" break
+			else
+				playFile ( dir fn )
+			end
+		end
+	}
+	log ( "all done." )
+}
+function playFile ( dir fn ) {
+	log ( 'ffplay %s' fn )
+	nodisp = FileObj ( '/home/neoe/nodisp' ) . isFile ( ) ? '-nodisp' : ''
+	execp_blind ( dir 'bash' '-c'
+		format ( "ffplay %s -autoexit '%s'" nodisp fn ) )
+}

@@ -1,0 +1,7 @@
+#!/usr/bin/env textfrog
+runnable main {
+	for {
+		execp_blind ( '/ram' 'bash' '-c' 'ev4.tfg' )
+		sleep ( 100 )
+	}
+}

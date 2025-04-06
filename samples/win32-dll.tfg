@@ -1,0 +1,13 @@
+
+include ( 'lib.tfg' )
+
+function lib_neoesample_win32 ( ) {
+	libFuncs = lib ( "neoesample" )
+	libHeader ( "neoesample" , [ "neoesample.h" ] , [  'EXPORT_API' ] , [ ] libFuncs , [ ] )
+}
+
+runnable main args {
+	lib_neoesample_win32 ( )
+	c = add ( 100 456 )
+	log ( 'c=' + c )
+}

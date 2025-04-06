@@ -1,0 +1,45 @@
+#!/usr/bin/env textfrog
+runnable function test ( args ) {
+	log ( formatHtml ( file ( args [ 0 ] ) ) )
+}
+function formatHtml ( txt ) {
+	ts = CTokens ( txt )
+	sb = [ ] . copy ( )
+	indent = 0
+	loop ( ) {
+		t = ts . next ( )
+		if t == null then break end
+		if t . es ( "<" ) then
+			sb . add ( t . token )
+			n = ts . next ( )
+			if n . es ( "/" ) then // </
+				ts . pushBack ( n )
+				readUntil ( ts sb ">" )
+				indent = indent - 1
+				changeLine ( sb indent )
+			else
+				ts . pushBack ( n )
+				readUntil ( ts sb ">" )
+				if ! ( ts . lastTokenCannotIgnoreIs ( "/" 1 ) ) then
+					indent = indent + 1
+				end
+				changeLine ( sb indent )
+			end
+		else
+			sb . add ( t . token )
+		end
+	}
+	return sb . join ( "" )
+}
+private function changeLine ( sb indent ) {
+	sb . add ( "\n" ) . add ( "\t" * indent )
+}
+private function readUntil ( ts sb k ) {
+	loop ( ) {
+		t = ts . next ( )
+		if t == null then return null end
+		sb . add ( t . token )
+		if t . es ( k ) then return null end
+	}
+}
+

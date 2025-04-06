@@ -1,0 +1,69 @@
+#!/usr/bin/env textfrog
+function html2epub ( bookname outDir chaps desc ) {
+	-- if ! ( dirname . endsWith ( "/" ) ) then dirname = dirname + "/" end
+	tmpDir = "/home/neoe/oss/lab/lab1/UTIL/text2epub/template/"
+	tmp = file ( "/home/neoe/oss/lab/lab1/UTIL/text2epub/template/template_000.html" )
+	outDir = FileObj ( outDir + "/" + bookname ) . getCanonicalPath ( )
+
+	html_list = [ ]
+	itemref_list = [ ]
+	content_list = [ ]
+
+	po = 1
+	for ( chaps chap ) {
+		i = po
+		po = po + 1
+		html_list . add ( format ( '<item href="chap%s.xhtml" id="chap%s" media-type="application/xhtml+xml"/>'
+				i i ) )
+		itemref_list . add ( format ( '<itemref idref="chap%s"/>' i ) )
+		content_list . add ( format ( '<navPoint  playOrder="%s">
+      <navLabel><text>Chapter %s</text></navLabel>
+      <content src="chap%s.xhtml"/></navPoint>'
+				po i i ) )
+		gen ( chap "Chapter " + i outDir + "/chap" + i + ".xhtml" tmp )
+	}
+	replaceMap = { }
+	replaceMap . put ( "html_list" html_list . join ( "\n" ) )
+	replaceMap . put ( "itemref_list" itemref_list . join ( "\n" ) )
+	replaceMap . put ( "content_list" content_list . join ( "\n" ) )
+	replaceMap . put ( "title" bookname )
+	replaceMap . put ( "desc" formatDate ( "yyyyMMdd E HH:mm" now ( ) ) + "<hr />" + desc . join ( '<br />' ) )
+
+	exec ( "rsync" "-rav" tmpDir outDir )
+
+	--	log ( "replaceMap=" + replaceMap )
+	filewalk ( outDir fn 1 ) {
+		if ( ! ( fn . contains ( "titlepage.xhtml" ) ) ) && fn . contains ( ".xhtml" )
+			then continue end -- not target
+		if ! ( FileObj ( fn ) . isFile ( ) ) then continue end
+		log ( "replace " + fn )
+		txt = file ( fn )
+		txt = replaceContent ( txt replaceMap )
+		save ( txt fn )
+	}
+
+	log ( "saved to \n%s" outDir )
+	epub = outDir + ".epub"
+	exec ( "rm" epub )
+	exec ( "7z" "a" "-tzip" epub "-w" outDir + "/." )
+	// log ( exec ( "7z" "l" epub ) [0] )
+}
+
+private function gen ( body title outfn tmp ) {
+	rep = { }
+	rep [ "body" ] = body
+	rep [ "title" ] = title
+	txt = replaceContent ( tmp rep )
+	save ( txt outfn )
+}
+private function replaceContent ( txt replaceMap ) {
+	for ( replaceMap k v ) {
+		txt = replaceAll ( txt k v )
+	}
+	return txt
+}
+private function replaceAll ( txt k v ) {
+	return txt . replace ( "$" + k v )
+}
+
+

@@ -1,0 +1,72 @@
+#!/usr/bin/env textfrog
+include ( 'util.tfg' )
+runnable function main ( args ) {
+	dir = args [ 0 ]
+	G . tolocal = true
+	if args . size ( ) > 1 && args [ 1 ] == '/usr'
+		G . tolocal = false
+	end
+	return autobuild ( dir )
+}
+function autobuild ( dir ) {
+	if ! ( dir . endsWith ( "/" ) ) dir = dir + "/" end
+	if ( FileObj ( dir + 'meson.build' ) . isFile ( ) )
+		mesonBuild ( dir )
+	elseif ( FileObj ( dir + 'CMakeLists.txt' ) . isFile ( ) )
+		cmakeBuild ( dir )
+	elseif ( FileObj ( dir + 'Makefile' ) . isFile ( ) )
+		makeBuild ( dir )
+	elseif ( FileObj ( dir + 'autogen.sh' ) . isFile ( ) )
+		autogen ( dir )
+	elseif ( FileObj ( dir + 'configure' ) . isFile ( ) )
+		confBuild ( dir )
+	else
+		log ( "cannot find build files in " + dir )
+		return 1
+	end
+	tryBash ( '.' 'ldconfig' )
+	return 0
+}
+function confBuild ( dir ) {
+	log ( 'using configure' )
+	wd = dir
+	checkBash ( wd './configure' + ( G . tolocal ? '' : ' --prefix=/usr' ) )
+	checkBash ( wd 'make -j ' + G . cpuCount )
+	checkBash ( wd "sudo make install" )
+	log ( 'done configure make' )
+}
+function autogen ( dir ) {
+	log ( 'using autogen' )
+	wd = dir
+	checkBash ( wd './autogen.sh' )
+	checkBash ( wd './configure' + ( G . tolocal ? '' : ' --prefix=/usr' ) )
+	checkBash ( wd 'make -j ' + G . cpuCount )
+	checkBash ( wd , "sudo make install" )
+	log ( 'done make' )
+}
+function makeBuild ( dir ) {
+	log ( 'using make' )
+	wd = dir
+	checkBash ( wd 'make -j ' + G . cpuCount )
+	checkBash ( wd , "sudo make install" )
+	log ( 'done make' )
+}
+function cmakeBuild ( dir ) {
+	log ( 'using cmake' )
+	wd = dir + '_b'
+	exec ( 'mkdir' wd )
+	checkBash ( wd 'cmake .. ' + ( G . tolocal ? '' : ' -DCMAKE_INSTALL_PREFIX=/usr' ) )
+	checkBash ( wd 'make -j ' + G . cpuCount )
+	checkBash ( wd , "sudo make install" )
+	log ( 'done cmake' )
+}
+function mesonBuild ( dir ) {
+	log ( 'using meson' )
+	wd = dir + '_b'
+	exec ( 'mkdir' wd )
+	checkBash ( wd 'meson setup .. ' + ( G . tolocal ? '' : ' --prefix=/usr' ) )
+	checkBash ( wd 'ninja' )
+	checkBash ( wd 'sudo ninja install' )
+	log ( 'done meson' )
+}
+

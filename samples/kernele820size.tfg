@@ -1,0 +1,109 @@
+#!/usr/bin/env textfrog
+# add size info for kernel dmesg e820
+runnable main ( args ) {
+	ret = exec ( 'sudo' 'dmesg' )
+	s = ret [ 0 ]
+	f = finder ( s )
+
+	tmp = [ ]
+	loop {
+		f . find ( 'BIOS-e820:' )
+		if f . finished ( ) break end
+		f . find ( '[mem' )
+		v1 = f . readUntil ( '-' ) . trim ( )
+		v2 = f . readUntil ( ']' ) . trim ( )
+		t = f . readUntil ( '\n' ) . trim ( )
+		if v1 . startsWith ( '0x' ) && v2 . startsWith ( '0x' )
+		else error ( 'wrong format? %s %s' v1 v1 ) end
+		p1 = toLong ( v1 [ 2 .. ] 16 )
+		p2 = toLong ( v2 [ 2 .. ] 16 )
+		tmp . add ( array ( p1 p2 t ) )
+	}
+	tmp . sort ( -> a b {
+			s1 = a [ 1 ] - a [ 0 ]
+			s2 = b [ 1 ] - b [ 0 ]
+			if s1 == s2 return 0
+			elseif s1 > s2 return -1
+			else return 1 end
+		} )
+	ret = [ ]
+	for tmp r {
+		t = r [ 2 ]
+		p1 = r [ 0 ]
+		p2 = r [ 1 ]
+		ret . add ( format ( '[%X-%X] %s (%,d)' p1 p2 t p2 - p1 ) )
+	}
+	log ( 'e820:\n' + ret . join ( '\n' ) )
+}
+
+/* sample result: 
+e820: ( on dell laptop intel i5-1135G7 )
+[0x0000000000000000-0x000000000009efff] usable (651,263)
+[0x000000000009f000-0x00000000000fffff] reserved (397,311)
+[0x0000000000100000-0x000000005f72afff] usable (1,600,303,103)
+[0x000000005f72b000-0x000000005f84dfff] type 20 (1,191,935)
+[0x000000005f84e000-0x0000000063510fff] reserved (63,713,279)
+[0x0000000063511000-0x0000000063d71fff] ACPI NVS (8,785,919)
+[0x0000000063d72000-0x0000000063ffefff] ACPI data (2,674,687)
+[0x0000000063fff000-0x0000000063ffffff] usable (4,095)
+[0x0000000064000000-0x0000000067ffffff] reserved (67,108,863)
+[0x0000000068400000-0x00000000685fffff] reserved (2,097,151)
+[0x0000000068e00000-0x00000000707fffff] reserved (127,926,271)
+[0x00000000c0000000-0x00000000cfffffff] reserved (268,435,455)
+[0x00000000fed20000-0x00000000fed7ffff] reserved (393,215)
+[0x00000000ff000000-0x00000000ffffffff] reserved (16,777,215)
+[0x0000000100000000-0x000000048f7fffff] usable (15,292,432,383)
+e820: (minipc amd 7735HS)
+[0x0000000000000000-0x000000000009ffff] usable (655,359)
+[0x00000000000a0000-0x00000000000fffff] reserved (393,215)
+[0x0000000000100000-0x0000000009afefff] usable (161,476,607)
+[0x0000000009aff000-0x0000000009ffffff] reserved (5,246,975)
+[0x000000000a000000-0x000000000a1fffff] usable (2,097,151)
+[0x000000000a200000-0x000000000a211fff] ACPI NVS (73,727)
+[0x000000000a212000-0x00000000d3ffdfff] usable (3,386,818,559)
+[0x00000000d3ffe000-0x00000000d4355fff] reserved (3,506,175)
+[0x00000000d4356000-0x00000000d43bbfff] ACPI data (417,791)
+[0x00000000d43bc000-0x00000000d9434fff] ACPI NVS (84,381,695)
+[0x00000000d9435000-0x00000000da57dfff] reserved (18,124,799)
+[0x00000000da57e000-0x00000000da5fdfff] type 20 (524,287)
+[0x00000000da5fe000-0x00000000da5fefff] usable (4,095)
+[0x00000000da5ff000-0x00000000da5fffff] reserved (4,095)
+[0x00000000da600000-0x00000000dbffcfff] usable (27,250,687)
+[0x00000000dbffd000-0x00000000dcffffff] reserved (16,789,503)
+[0x00000000dd800000-0x00000000efffffff] reserved (310,378,495)
+[0x00000000fd000000-0x00000000ffffffff] reserved (50,331,647)
+[0x0000000100000000-0x000000039e2fffff] usable (11,243,880,447)
+[0x000000039f340000-0x00000004401fffff] reserved (2,699,821,055)
+e820: (amd 3900x desktop)
+[0x0000000000000000-0x000000000009ffff] usable (655,359)
+[0x00000000000a0000-0x00000000000fffff] reserved (393,215)
+[0x0000000000100000-0x0000000009d1efff] usable (163,704,831)
+[0x0000000009d1f000-0x0000000009ffffff] reserved (3,018,751)
+[0x000000000a000000-0x000000000a1fffff] usable (2,097,151)
+[0x000000000a200000-0x000000000a210fff] ACPI NVS (69,631)
+[0x000000000a211000-0x000000000affffff] usable (14,610,431)
+[0x000000000b000000-0x000000000b01ffff] reserved (131,071)
+[0x000000000b020000-0x00000000c9e70fff] usable (3,202,682,879)
+[0x00000000c9e71000-0x00000000ca227fff] reserved (3,895,295)
+[0x00000000ca228000-0x00000000ca4a4fff] ACPI data (2,609,151)
+[0x00000000ca4a5000-0x00000000cabccfff] ACPI NVS (7,503,871)
+[0x00000000cabcd000-0x00000000cbb5dfff] reserved (16,322,559)
+[0x00000000cbb5e000-0x00000000cbbfefff] type 20 (659,455)
+[0x00000000cbbff000-0x00000000ccffffff] usable (20,975,615)
+[0x00000000cd000000-0x00000000cfffffff] reserved (50,331,647)
+[0x00000000f0000000-0x00000000f7ffffff] reserved (134,217,727)
+[0x00000000fd200000-0x00000000fd2fffff] reserved (1,048,575)
+[0x00000000fd600000-0x00000000fd7fffff] reserved (2,097,151)
+[0x00000000fea00000-0x00000000fea0ffff] reserved (65,535)
+[0x00000000feb80000-0x00000000fec01fff] reserved (532,479)
+[0x00000000fec10000-0x00000000fec10fff] reserved (4,095)
+[0x00000000fec30000-0x00000000fec30fff] reserved (4,095)
+[0x00000000fed00000-0x00000000fed00fff] reserved (4,095)
+[0x00000000fed40000-0x00000000fed44fff] reserved (20,479)
+[0x00000000fed80000-0x00000000fed8ffff] reserved (65,535)
+[0x00000000fedc2000-0x00000000fedcffff] reserved (57,343)
+[0x00000000fedd4000-0x00000000fedd5fff] reserved (8,191)
+[0x00000000ff000000-0x00000000ffffffff] reserved (16,777,215)
+[0x0000000100000000-0x000000202f2fffff] usable (133,935,661,055)
+[0x000000202f300000-0x000000202fffffff] reserved (13,631,487)
+*/

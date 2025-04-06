@@ -1,0 +1,201 @@
+#!/usr/bin/env textfrog
+include ( "lib.tfg" )
+include ( "util.tfg" )
+include ( "godrand.tfg" )
+-- libmytar = lib ( "mytar" )
+-- libHeader ( "mytar" , [ "tomem.h" ] , [ EXPORT_API ] , [ ] , libmytar , [ ] )
+include ( "zstdres.tfg" )
+G . usezst = true
+runnable init ( ) {
+	//nothing to do
+}
+runnable test ( ) {
+	initFileList ( usezst ? '/ram/unpack/jp-bookz/' : '/ram/unpack/jpbook2/' ) // 
+	//	log ( list ( ) )
+	fn = '4/中村航－ぐるぐるまわるすべり台'
+	--	log ( '---[%s]' find ( 'ぐるぐる' ) )
+	log ( '---[%s]' find0 ( 'ぐるぐる' true ) )
+	log ( '---[%s]' filezst ( dir + fn + Kend ) )
+}
+func initFileList ( dir ) {
+	G . dir = dir
+	G . Kend = G . usezst ? '.txt.zst' : '.txt'
+	G . text = { }
+	dirl = dir . length ( )
+	kl = -1 - Kend . length ( )
+	filewalk dir fn 20 {
+		if fn . endsWith ( Kend )
+			f = FileObj ( fn )
+			fn1 = fn [ dirl .. kl ]
+			G . text [ fn1 ] = f . length ( )
+		end
+	}
+}
+function list ( ) {
+	ret = [ ]
+	for ( G . text k v ) {
+		ret . add ( format ( 'text: %s -- len z %,d' k v ) )
+	}
+	ret . sort ( )
+	return ret . join ( '\n' )
+}
+function rand ( param ) {
+	ps = param . split ( ' ' )
+	total = toInt ( ps [ 0 ] )
+	part = 5
+	if ps . size ( ) > 1 part = toInt ( ps [ 1 ] ) end
+	if G . texts == null G . texts = toList ( G . text . keySet ( ) ) end
+	k = G . texts [ nextNum ( ) % G . texts . size ( ) ]
+	return digest ( part toInt ( total ) k G . text [ k ] )
+}
+private digest ( part words title text ) {
+	ret = [ ]
+	ret . add ( title + "---{" )
+	len = text . length ( )
+	if len <= words
+		ret . add ( getPart ( text 0 len ) )
+		ret . add ( title + "---}" )
+		return ret . join ( '\n' )
+	end
+	w = words / part
+	x = len / part
+	ret . add ( getPart ( text 0 w ) )
+	for part -2 i {
+		ret . add ( format ( "---%d/%d---" i + 2 part ) )
+		ret . add ( getPart ( text x * ( i + 1 ) - w / 2 w ) )
+	}
+	ret . add ( format ( "---%d/%d---" part part ) )
+	ret . add ( getPart ( text len - w w ) )
+	ret . add ( title + "---}" )
+	return ret . join ( '\n' )
+}
+private getPart ( text s w ) {
+	t = text [ s .. s + w ]
+	if s == 0
+		p1 = t . indexOf ( "最经典最完整" )
+		if p1 > 0
+			k = min ( p1 + 7 + w text . length ( ) )
+			t = text [ p1 + 7 .. k ]
+		end
+	elseif s + w == text . length ( )
+		t2 = t . toLowerCase ( )
+		p1 = t2 . indexOf ( 'www' )
+		if p1 < 0
+			p1 = t2 . indexOf ( '下书网' )
+		end
+		if p1 > 0
+			t = text [ s + p1 - w .. s + p1 ]
+		end
+	end
+	if true
+		return warpLine ( t 80 )
+	else
+		sb = [ ]
+		x = 0
+		y = 80
+		w = t . length ( )
+		for w i {
+			c = t [ i ]
+			if c < 255 x = x + 1 else x = x + 2 end
+			sb . add ( c )
+			if '' + c == '\n' /*\n*/ x = 0 end
+			if x >= y x = 0 sb . add ( '\n' ) end
+		}
+		return sb . join ( '' )
+	end
+}
+function find ( ss0 ) {
+	return find0 ( ss0 false )
+}
+func getFile ( fn ) {
+	return usezst ? filezst ( fn ) : file ( fn )
+}
+function find0 ( ss0 onlyTitle ) {
+	ss = toList ( ss0 . split ( ' ' ) ) . filter ( -> x { return ! ( x . isEmpty ( ) ) } )
+	r = [ ]
+	for ( G . text k v0 ) {
+		fn = G . dir + k + Kend
+		v = ''
+		tc = getScore ( k ss ) // find in title
+		if tc > 0 log ( k ) end
+		sc = 0
+		if onlyTitle
+			sc = tc
+		else
+			v = getFile ( fn )
+			sc = getScore ( v ss )
+			sc = sc + tc * 100
+		end
+		if sc <= 0 continue end
+		r . add ( [ ] . add ( k ) . add ( sc ) . add ( v . length ( ) ) )
+	}
+	r . sort ( -> a b { return b [ 1 ] - a [ 1 ] } )
+	ret = [ ]
+	for ( r x ) {
+		ret . add ( format ( 'text: %s -- %s  len %,d' x ) )
+	}
+	return ret . join ( '\n' )
+}
+function text ( line ) {
+	p1 = line . lastIndexOf ( ' -- ' )
+	if p1 > 0 line = line [ 0 .. p1 ] end
+	line = line . trim ( )
+	return digest ( 1 9999999 line G . text [ line ] )
+}
+function getScore ( v ss ) {
+	sum = 0
+	for ( ss s ) {
+		e = num ( v s )
+		if e == 0 return 0 end
+		sum = sum + e
+	}
+	return sum
+}
+function num ( t s ) {
+	if s . isEmpty ( ) return 0 end
+	p1 = 0
+	r = 0
+	for {
+		p1 = t . indexOf ( s p1 )
+		if p1 < 0 break end
+		r = r + 1
+		p1 = p1 + s . length ( )
+	}
+	return r
+}
+
+function loadResource ( fn0 ) { // use libzstd and tar(java)
+	timeit ( 'load ' + fn0 G . text = zstdTar2TextMap ( fn0 G . tfg ) ) -- built-in func
+	tryGC ( )
+}
+function loadResource2 ( fn0 ) {
+	timeit ( 'load ' + fn0 loadResource_tomem ( fn0 ) )
+}
+function loadResource_tomem ( fn0 ) {
+	log ( "loadResource..." + fn0 )
+	entries = nativePointerArray ( 1 )
+	targetBuf = nativePointerArray ( 1 )
+	tomem_main ( fn0 entries targetBuf )
+	log ( "targetBuf=%x entries=%x" targetBuf . addr ( ) entries . addr ( ) )
+	entry = struct ( tomem_entry_s entries [ 0 ] )
+	res = { } . copy ( )
+	buffAddr = targetBuf [ 0 ]
+	totalsize = 0
+	i = 0
+	for {
+		if entry . fn == 0 break end
+		fn = nativeString ( entry . fn )
+		if fn . startsWith ( "./" ) fn = fn [ 2 .. ] end
+		i = i + 1
+		--	log ( "add %d %s" i fn )
+		res [ fn ] = nativeString ( entry . off + buffAddr entry . size )
+		totalsize = totalsize + entry . size
+		entry = struct ( tomem_entry_s entry . next )
+	}
+	log ( "res count %,d raw %,d bytes" res . size ( ) totalsize )
+	G . text = res
+	log ( "loadResource end..." )
+	tryGC ( )
+}
+
+

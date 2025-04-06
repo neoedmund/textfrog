@@ -1,0 +1,35 @@
+#!/usr/bin/env textfrog
+/*
+- find text in files
+	this is a quick search , no symbol link, test only first N bytes of file, and only utf8
+eg. find out where is the steam storage manager config file is:
+find2.tfg /home/neoe/.local/share/Steam /media 10 1000
+	/home/neoe/.local/share/Steam/config/libraryfolders.vdf
+	/home/neoe/.local/share/Steam/steamapps/libraryfolders.vdf
+*/
+runnable main args {
+	if args . size ( ) != 4
+		log ( 'param: dir text level size' )
+		return 0
+	end
+	dir = args [ 0 ]
+	text = args [ 1 ]
+	level = toInt ( args [ 2 ] )
+	size = toInt ( args [ 3 ] )
+	find2 ( dir text level size )
+}
+func find2 ( dir text level size ) {
+	b2 = text . getBytes ( 'utf8' )
+	b1 = newByteArray ( size )
+	c = 0
+	filewalk dir fn level {
+		if fn . endsWith ( '.so' ) || fn . endsWith ( '.dll' ) || fn . endsWith ( '.exe' ) continue end
+		f = FileObj ( fn )
+		if ! f . isFile ( ) continue end
+		//	log ( '%s\t%,d' fn f . length ( ) )
+		len = readFileToBs ( fn b1 )
+		p = indexOfBs2 ( b1 0 len b2 0 b2 . length )
+		if p >= 0 log ( fn ) c += 1 end
+	}
+	log ( 'found [%s] in %,d files' text c )
+}

@@ -1,0 +1,37 @@
+#!/usr/bin/env textfrog
+// param: dir minSize lv key1 key2 ...
+runnable function main ( args ) {
+	ks = args [ 3 .. args . size ( ) ] . map ( -> ( x ) { return x . toLowerCase ( ) } )
+	cnt = 0
+	found = 0
+	lv = args [ 2 ] . toInt ( )
+	minSize = args [ 1 ] . toInt ( )
+	dir = args [ 0 ]
+	log ( "search in %s max level %d with '%s'" dir lv ks )
+	size = 0
+	ret = [ ] . copy ( )
+	skipBySize=0
+	filewalk ( dir fn lv ) {
+		if contains ( fn , ks ) then
+			-- log ( fn )
+			s1 = FileObj ( fn ) . length ( )
+			if s1 < minSize then skipBySize=skipBySize+1 continue end
+			ret . add ( fn )
+			found = found + 1
+			size = size + s1
+			-- else log("skip %s" fn)
+		end
+		cnt = cnt + 1
+	}
+	ret . sort ( )
+	for ( ret s ) {
+		log ('set-font:%s\n下面这个图统计了这款字体里面包含多少个简体字数和繁体字数等信息' s )
+	}
+	log ( "found %d/%d files (total %,d bytes) in %s max level %d, skipBySize=%d, with '%s'" found cnt size dir lv skipBySize ks )
+}
+private function contains ( fn ks ) {
+	for ( ks k ) {
+		if ! ( fn . toLowerCase ( ) . contains ( k ) ) then return false end
+	}
+	return true
+}

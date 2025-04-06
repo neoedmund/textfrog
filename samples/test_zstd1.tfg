@@ -1,0 +1,10 @@
+#!/usr/bin/env textfrog
+include ( 'lib.tfg' )
+libzstd ( )
+runnable main {
+	fn = '/down/t7txt.tar.zst'
+	mf = MapFile ( fn )
+	size = ZSTD_findDecompressedSize ( mf . addr ( ) mf . size ( ) )
+	log ( "zstd(ver %s) file(%s %x %,d) size=%,d"
+		nativeString ( ZSTD_versionString ( ) ) fn mf . addr ( ) mf . size ( ) size )
+}

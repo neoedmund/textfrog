@@ -1,0 +1,24 @@
+#!/usr/bin/env textfrog
+// for 
+runnable function main ( ) {
+	f1 = "/data/oss/github/neoedmund/tar2mem/mybuildc"
+	f2 = "/data/oss/github/neoedmund/tar2mem/includedc"
+	ss1 = file ( f1 ) . split ( "\n" )
+	ss2 = file ( f2 ) . split ( "\n" )
+	ret = [ ] . copy ( )
+	for ( ss1 s ) {
+		if find ( s ss2 ) then
+			s = " // " + s
+		end
+		ret . add ( s )
+	}
+	save ( ret . join ( "\n" ) f1 + ".1" )
+}
+function find ( s ss ) {
+	s = s . trim ( )
+	for ( ss t ) {
+		if s . endsWith ( "/" + t ) then return true end
+	}
+	return false
+}
+

@@ -1,0 +1,39 @@
+#!/usr/bin/env textfrog
+/*
+bright.tfg up
+*/
+// set brightness for laptop
+// include ( 'notify.tfg' )
+runnable set ( args ) {
+	setbr ( toInt ( args [ 0 ] ) )
+}
+runnable up ( ) {
+	setbr ( readbr ( ) + 10 )
+}
+runnable down ( ) {
+	setbr ( readbr ( ) -10 )
+}
+func getBrFile {
+	br = "/sys/class/backlight/amdgpu_bl0/brightness"
+	if ! FileObj ( br ) . exists ( )
+		br = "/sys/class/backlight/intel_backlight/brightness"
+		if ! FileObj ( br ) . exists ( )
+			error ( "backlight file not found" )
+			return null
+		end
+	end
+	return br
+}
+function setbr ( v ) {
+	br = getBrFile ( )
+	exec ( [ sudo bash '-c' ] format ( "echo %s > %s" v br ) )
+	log ( 'br:%s' file ( br ) )
+}
+function readbr ( ) {
+	s = file ( getBrFile ( ) )
+	return toInt ( s . trim ( ) )
+}
+
+function brightUp ( ) { up ( ) }
+function brightDown ( ) { down ( ) }
+

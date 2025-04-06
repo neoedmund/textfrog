@@ -1,0 +1,21 @@
+#!/usr/bin/env textfrog
+/*
+tfg hexstr 534932393331303037303138
+
+tfg hexstr 5A5A32323034313432303038
+
+
+SI2931007018
+ZZ2204142008
+*/
+
+runnable main args {
+	s = args [ 0 ]
+	len = s . length ( ) / 2
+	sb = [ ]
+	for len i {
+		sb . add ( '' + toChar ( toInt ( s [ i * 2 .. i * 2 + 2 ] 16 ) ) )
+	}
+	log('ret=%s' sb.join(''))
+}
+

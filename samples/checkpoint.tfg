@@ -1,0 +1,12 @@
+func checkPoint ( ) {
+	return { } . putZig (
+		't' now ( )
+		'check' -> s {
+			t1 = now ( )
+			if s != ''
+				log ( '[cp] %s %,dms' s t1 - this . t )
+			end
+			this . t = t1
+		}
+	)
+}

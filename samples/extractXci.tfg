@@ -1,0 +1,19 @@
+#!/usr/bin/env textfrog
+/*
+tfg extractXci
+*/
+runnable main {
+	indir = '/ram/ex3/secure'
+	outdir = '/ram/ex/'
+	exe = '/ram/unpack/nstool-v1.9.1-ubuntu_x86_64/nstool'
+	for FileObj ( indir ) . listFiles ( ) f {
+		fn = f . getName ( )
+		if fn . endsWith ( '.nca' )
+			fn2 = fn [ 0 .. -5 ]
+			fno = outdir + fn2
+			FileObj ( fno ) . mkdirs ( )
+			ret = execp ( '/ram' exe '-x' fno f . getAbsolutePath ( ) )
+			log ( '%s' '' + ret )
+		end
+	}
+}

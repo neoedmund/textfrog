@@ -1,0 +1,23 @@
+#!/usr/bin/env textfrog
+/*
+test tfg env, and lambda
+tfg testEnv
+*/
+runnable main {
+	a = 1
+	b = [ ]
+	f2 ( -> v { log ( 'v=%s,  a=%s' v a ) a = 13 b . add ( 'x' ) } )
+	log ( 'a13=%s, b=%s' a '' + b )
+	f1 ( 2 )
+}
+function f1 ( b ) {
+	log ( b )
+	try {
+		log ( a ) -- fail here
+	} catch ex {
+		log ( 'ex=%s' ( '' + ex ) [ 0 .. 10 ] )
+	}
+}
+function f2 ( f3 ) {
+	$f3 ( 4 )
+}

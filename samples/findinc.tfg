@@ -1,0 +1,20 @@
+#!/usr/bin/env textfrog
+paths = [ "/usr/local/include" "/usr/include"  ] . copy ( )
+
+runnable function main ( args ) {
+	name = args [ 0 ]
+	ret = [ ] . copy ( )
+	cnt = 0
+	for ( paths path ) {
+		filewalk ( path fn 4 ) {
+			if fn . contains ( name ) then ret . add ( fn ) end
+			cnt = cnt + 1
+		}
+	}
+	log ( "find %d results in %,d files" ret . size ( ) cnt )
+	if ret . size ( ) > 0 then
+		for ( ret fn ) {
+			log ( fn )
+		}
+	end
+}

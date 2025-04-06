@@ -1,0 +1,11 @@
+#!/usr/bin/env textfrog
+runnable function test ( args ) {
+	d = { name : test }
+	fn = args [ 0 ]
+	d [ "fn" ] = fn
+	d [ 0 ] = fn
+	len = d . size ( )
+	for ( d key value i ) {
+		log ( "[%d/%d]k=%s v=%s" i + 1 len key value )
+	}
+}

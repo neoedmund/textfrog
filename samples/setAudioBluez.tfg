@@ -1,0 +1,38 @@
+#!/usr/bin/env textfrog
+include ( 'util.tfg' )
+
+runnable main {
+	setAudioBluez ( )
+}
+runnable volume {
+	setAudioVolume ( )
+}
+func setAudioBluez {
+	loop {
+		if ! setAudioVolume ( )
+			sleep ( 500 )
+		else break end
+	}
+}
+func setAudioVolume {
+	name = 0
+	ret = tryBash ( '/tmp' 'pacmd list-sinks' )
+	ss = ret [ 0 ]
+	for ss . split ( '\n' ) line {
+		line = line . trim ( )
+		if line . startsWith ( 'name: <' ) line = line [ 7 .. -2 ] . trim ( )
+			name = line
+			if line . contains ( 'MyApp' ) continue end
+			if line . contains ( 'bluez' )
+				tryBash ( '/tmp' format ( 'pacmd set-sink-volume  %s %s ' name 20000 ) )
+			else
+				tryBash ( '/tmp' format ( 'pacmd set-sink-volume  %s %s ' name 2 ) )
+			end
+		end
+	}
+	if name != 0
+		tryBash ( '/tmp' format ( 'pacmd set-default-sink %s ' name ) )
+	end
+	return name != 0
+}
+

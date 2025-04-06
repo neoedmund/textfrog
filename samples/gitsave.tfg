@@ -1,0 +1,56 @@
+#!/usr/bin/env textfrog
+/*
+first run gitsave.tfg to see status
+then run gitsave.tfg 'msg' to commit and push
+*/
+runnable main ( args ) {
+	dir = G . systemEnv [ 'neoebuild_base' ]
+	if dir == null dir = '/home/neoe/oss/lab' end
+	if args . size ( ) == 0
+		ret = checkExec ( execp ( dir , [ git status ] ) )
+		printStatus ( ret [ 0 ] dir )
+	else
+		ret = checkExec ( execp ( dir , [ git status ] ) )
+		printStatus ( ret [ 0 ] dir )
+		msg = args . join ( ' ' )
+		checkExec ( execp ( dir , [ git commit '-am' ] msg ) )
+		checkExec ( execp ( dir , [ git push ] ) )
+		ret = checkExec ( execp ( dir , [ git status ] ) )
+		printStatus ( ret [ 0 ] dir )
+	end
+}
+function printStatus ( ret0 dir ) {
+	f = finder ( ret0 )
+	other = f . readUntil ( "Untracked files:" )
+	log ( other )
+	log ( '---' )
+	f . find ( '(use "git add' )
+	if f . finished ( ) log ( 'seems nothing untracked.' + ret0 ) return 0 end
+	f . find ( '\n' )
+	ignored = toList ( file ( dir + '/ignored.log' ) . split ( "\n" ) ) . map ( -> x { return x . trim ( ) } )
+	untracked = [ ]
+	for {
+		line = f . readUntil ( '\n' )
+		if line == null break end
+		line = line . trim ( )
+		if line == '' break end
+		if ignored . contains ( line ) continue end
+		if starts ( ignored line ) continue end
+		untracked . add ( line )
+	}
+	if untracked . isEmpty ( ) log ( 'no untracked files after ignored(it\'s clear!)' ) return 0 end
+	log ( 'untracked:\n%s' untracked . join ( '\n' ) )
+}
+func starts ( ignored line ) {
+	for ignored ig {
+		if ig . endsWith ( '/' ) && line . startsWith ( ig ) return true end
+	}
+	return false
+}
+function checkExec ( ret ) {
+	if ret [ 2 ] != 0 then
+		error ( "exec failed code %s %s" ret [ 2 ] '' + ret )
+	else
+		return ret
+	end
+}

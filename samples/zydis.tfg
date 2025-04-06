@@ -1,0 +1,43 @@
+#!/usr/bin/env textfrog
+include ( 'lib.tfg' )
+loadLib('Zydis')
+runnable test {
+	testcode = '81 7d fc 3a 30 00 00 90'
+	bs = getNativeBsHex ( testcode )
+	confirm ( bs . size ( ) == 8 'bug?' )
+
+	instruction = struct ( ZydisDisassembledInstruction )
+	rip = 0x10000
+	r = ZydisDisassembleIntel (
+		/* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64
+		/* runtime_address: */ rip
+		/* buffer:          */ bs
+		/* length:          */ bs . size ( )
+		/* instruction:     */ instruction
+	)
+
+	asmsize = instruction . info . length
+	log ( '[%d]asm:%X:%d(%s) %s' r rip asmsize toHex ( bs asmsize )
+		nativeString ( instruction . text . addr ( ) ) )
+}
+private func toHex ( bs size ) {
+	s = newBaos ( )
+	for size i {
+		s . str ( format ( '%02X ' bs [ i ] ) )
+	}
+	return s . toString ( )
+}
+private func getNativeBsHex ( hex ) {
+	bs = newBaos ( )
+	ts = spacedTokens ( hex )
+	loop {
+		s = ts . ns ( )
+		if s == null break end
+		bs . writeByte ( toInt ( s 16 ) )
+	}
+	size = bs . size ( )
+	nb = nativeByteArray ( size )
+	bs . writeToBB ( nb . bb ( ) )
+	return nb
+}
+

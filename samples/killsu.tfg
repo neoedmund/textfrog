@@ -1,0 +1,5 @@
+#!/usr/bin/env textfrog_su
+include ( 'pause.tfg' )
+runnable function main ( args ) {
+	kills ( '' args )
+}

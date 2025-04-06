@@ -1,0 +1,18 @@
+#!/usr/bin/env textfrog_su
+include ( 'lib.tfg' )
+include ( 'util.tfg' )
+libC ( )
+runnable main ( args ) {
+	tryBash ( '/tmp' 'umount /media/*' )
+	checkBash ( '/tmp' 'sync' )
+	sleep ( 300 )
+	if args . size ( ) > 0 && args [ 0 ] . contains ( 'off' )
+		log ( 'poweroff' )
+		ret = reboot ( 0x4321fedc ) -- poweroff
+		log ( 'reboot(poweroff) ret=' + ret )
+	else
+		log ( 'reboot' )
+		ret = reboot ( 0x1234567 ) -- https://man7.org/linux/man-pages/man2/reboot.2.html
+		log ( 'reboot ret=' + ret )
+	end
+}

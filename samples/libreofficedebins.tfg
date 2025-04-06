@@ -1,0 +1,11 @@
+#!/usr/bin/env textfrog
+include ( 'util.tfg' )
+runnable main args {
+	path = args [ 0 ]
+	filewalk ( path fn 3 ) {
+		if fn . endsWith ( ".deb" )
+			checkBash ( '/ram' format ( 'dpkg -x %s /ram/os' fn ) )
+		end
+	}
+	checkBash ( '/ram' 'xcopy2.sh' )
+}

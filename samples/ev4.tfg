@@ -1,0 +1,151 @@
+#!/usr/bin/env textfrog
+// include ( 'lib.tfg' )
+G . base = G . systemEnv . neoebuild_base
+loadLib ( 'myev' )
+// libHeader ( "myev" , [ ] . add ( G . base + "/lab0/linux/ev4/c/myev.h" ) , [ EXPORT_API ] , [ ] , lib ( "myev" ) , [ ] )
+libC ( )
+// include ( "looplist.tfg" )
+include ( "bright.tfg" )
+include ( "vol.tfg" )
+runnable main {
+	test = struct ( epoll_event )
+	if test . size ( ) != 12 error ( "bug epoll_event.size()==%s(thought==12)" test . size ( ) ) end
+	test = struct ( input_event )
+	if test . size ( ) != 24 error ( "bug input_event.size()==%s(thought==24)" test . size ( ) ) end
+
+	G . keybuf = { }
+	G . inputs = nativeStructArray ( 'input_event' 60 )
+	restart ( )
+	j = 0
+	loop {
+		j = j + 1 if j > 1000 j = 0 tryGC ( ) end
+		cnt = myev_pull ( )
+		if cnt == 0
+			log ( "myev_pull seems failed , let's bind it again" )
+			sleep ( 100 ) restart ( )
+		else
+			for cnt i {
+				if processEvent ( G . events [ i ] ) == -1
+					log ( 'restart ev4' )
+					sleep ( 1000 ) restart ( )
+				end
+			}
+		end
+	}
+}
+function restart {
+	strbutP = nativePointerArray ( 1 )
+	eventbutP = nativePointerArray ( 1 )
+	ret = myev_bind ( strbutP eventbutP )
+	if ret == 0 error ( "bind events failed" ) end
+	log ( s = nativeString ( strbutP [ 0 ] ) )
+	setup = parseData ( s )
+	conf = parseData ( file ( G . base + "/lab0/linux/ev4/ev4.conf" ) )
+	G . events = nativeStructArray ( 'epoll_event' MAX_EVENTS eventbutP [ 0 ] )
+	enabled = { }
+	for setup fd name {
+		if conf . mapping [ name ] != null enabled [ toInt ( fd ) ] = name end
+	}
+	if enabled . isEmpty ( ) error ( "no conf entry enabled" )
+	else
+		log ( "enabled:%s" '' + enabled )
+	end
+	G . enabled = enabled
+	G . mapping = conf . mapping
+}
+
+function processEvent ( evt ) {
+	fd = toInt ( evt . fd )
+	//log ( "events:%x fd:%x " evt . events evt . fd )
+	ev = G . inputs
+	rd = read ( evt . fd ev ev . size ( ) )
+	if rd == -1 return -1 end
+	if ! ( G . enabled . containsKey ( fd ) ) return 0 end
+
+	usize = 24
+	if rd % usize != 0 error ( "why? rd=%d" rd ) end
+	size = rd / usize
+	for size i {
+		evi = ev [ i ]
+		if evi . type == 1
+			appendKey ( fd evi . code evi . value )
+		elseif evi . type == 4 && size <= 2 -- emulate scan code as keycode, what if same value? ignored if size>2 (should be scancode with keycode)
+			appendKey ( fd evi . value 1 )
+			appendKey ( fd evi . value 0 )
+		elseif evi . type == 3 /*fix bad gamepad && evi . code != 0 */
+			v = ( evi . code << 16 ) | ( evi . value & 0xffff )
+			appendKey ( fd v 1 )
+			appendKey ( fd v 0 )
+			-- log ( "t3--" + v )
+			/*
+16*0x100= 4096
+17*0x100= 4352+0xff= 4607
+*/
+		elseif evi . type == 5 && evi . code == 2 // audio plug event?
+			appendKey ( fd evi . value 1 )
+			appendKey ( fd evi . value 0 )
+		end
+		-- log ( "[%d/%d] fd=%d type=%d code=%d value=%d" i + 1 size evt . fd evi . type evi . code evi . value )
+	}
+	if ( buf = G . keybuf [ fd ] ) == null buf = ( G . keybuf [ fd ] = newLoopList2 ( 10 2 ) ) end
+	matchRules ( G . mapping [ G . enabled [ fd ] ] buf fd )
+	return size
+}
+//
+private appendKey ( fd code value ) {
+	if ( buf = G . keybuf [ fd ] ) == null buf = ( G . keybuf [ fd ] = newLoopList2 ( 10 2 ) ) end
+	// tfg more cpu cycles, but no more malloc?
+	buf . add ( ) . set ( 0 code ) . set ( 1 value )
+}
+private matchRules ( rules keybuf fd ) {
+	for rules r {
+		keys = r [ 0 ]
+		cmds = r [ 1 ]
+		rev = r . size ( ) > 2 && r [ 2 ] == 'reversedReleaseOrder'
+		if matchRule ( keys rev keybuf )
+			try {
+				runCmd ( cmds )
+			} catch ( ex ) { log ( 'ev4.error:' + ex ) }
+			appendKey ( fd 0 0 )
+			break
+		end
+	}
+}
+private runCmd ( cmds ) {
+	log ( 'run ' + cmds )
+	cmd = cmds [ 0 ]
+	if cmd == 'keys'
+		robotKey ( cmds [ 1 ] )
+	elseif cmd == 'brightUp' || cmd == 'brightDown'
+		|| cmd == 'volUp' || cmd == 'volDown'
+		$cmd ( )
+	elseif cmd == 'cmd'
+		thread ( -> ( ) { exec ( cmds [ 1 .. ] ) } )
+	else log ( 'ignore ' + cmd )
+	end
+}
+private matchRule ( ks rev keybuf ) {
+	len = ks . size ( )
+	buf = keybuf . data
+	bufsize = keybuf . size
+	if bufsize == null log ( "[d]null?" + keybuf ) end
+	p = keybuf . q - 1
+	if p < 0 p = bufsize - 1 end
+	--	log ( "match %s buf[%d]=%s" ks p '' + buf [ p ] )
+	-- if ( buf [ p ] [ 1 ] != 0 ) return false end
+	for len i {
+		if ! cmp1 ( ks [ len - 1 - i ] buf [ p ] 0 ) return false end
+		p = p -1 if p < 0 p = bufsize - 1 end
+	}
+	for len i {
+		j = i if rev j = len - 1 - i end
+		if ! cmp1 ( ks [ j ] buf [ p ] 1 ) return false end
+		p = p -1 if ( p < 0 ) p = bufsize - 1 end
+	}
+	return true ;
+}
+private cmp1 ( a b v ) {
+	if b == 0 return false end
+	return a == b [ 0 ] && v == b [ 1 ]
+}
+

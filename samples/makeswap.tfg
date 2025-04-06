@@ -1,0 +1,41 @@
+#!/usr/bin/env textfrog_su
+include ( "util.tfg" )
+runnable main {
+	if bigFree ( ) return 0 end
+	wd = "."
+	ret = checkBash ( wd "swapon" )
+	ss = ret [ 0 ] . split ( "\n" )
+	if ss . size ( ) >= 2
+		log ( "found swap: %s" ss [ ss . size ( ) -1 ] )
+		return 1
+	end
+	fn = "/swapfile"
+	if FileObj ( fn ) . exists ( ) log ( "%s already exists" fn )
+		checkBash ( "." "swapon /swapfile" )
+		return 1 end
+	fstabfn = "/etc/fstab"
+	fstab = file ( fstabfn )
+
+	checkBashs ( wd `dd if=/dev/zero of=/swapfile bs=8192 count=1048576
+	chmod 600 /swapfile
+	mkswap /swapfile
+	swapon /swapfile
+	` )
+	if fstab . contains ( "swap" ) log ( "fstab contains swap" )
+	else save ( fstab + "\n /swapfile swap swap defaults 0 0" fstabfn )
+	end
+	save ( "1" "/proc/sys/vm/swappiness" )
+}
+func bigFree ( ) {
+	ret = checkBash ( "." "free" )
+	for ret [ 0 ] . split ( "\n" ) line {
+		if line . startsWith ( "Mem:" )
+			p = line . lastIndexOf ( " " )
+			free = toInt ( line [ p + 1 .. ] . trim ( ) )
+			if free > 16000000 return true end
+			break
+		end
+	}
+	return false
+}
+

@@ -1,0 +1,62 @@
+#!/usr/bin/env textfrog
+runnable main args {
+	cpugov_init ( )
+	if args [ 0 ] == '1'
+		cpuHigh ( )
+	else
+		cpuLow ( )
+	end
+}
+
+func cpuHigh {
+	cpugov_init ( )
+	t1 = now ( )
+	if t1 - G . cpugov . lastChanged < 5000 return 0 end
+	if G . cpugov . has1
+		v = 'performance'
+		v0 = file ( '/sys/devices/system/cpu/cpufreq/policy0/scaling_governor' ) . trim ( )
+		if v0 == v return 0 end log ( '[%s]vs[%s]' v v0 )
+		for G . cpugov . nr i {
+			fn = format ( '/sys/devices/system/cpu/cpufreq/policy%s/scaling_governor' i )
+			save ( v fn )
+		}
+		G . cpugov . lastChanged = t1
+		log ( 'cpugov[%s]=%s' G . cpugov . nr v )
+	end
+}
+func cpuLow {
+	cpugov_init ( )
+	t1 = now ( )
+	if t1 - G . cpugov . lastChanged < 5000 return 0 end
+	if G . cpugov . has0
+
+		v = 'powersave'
+		v0 = file ( '/sys/devices/system/cpu/cpufreq/policy0/scaling_governor' ) . trim ( )
+		if v0 == v log ( 'already low' ) return 0 end log ( '[%s]vs[%s]' v v0 )
+		for G . cpugov . nr i {
+			fn = format ( '/sys/devices/system/cpu/cpufreq/policy%s/scaling_governor' i )
+			save ( v fn )
+		}
+		G . cpugov . lastChanged = t1
+		log ( 'cpugov[%s]=%s' G . cpugov . nr v )
+	end
+}
+private cpugov_init {
+	if G . cpugov != null return 0 end
+	ava = parseData ( format ( '[%s]' file ( '/sys/devices/system/cpu/cpufreq/policy0/scaling_available_governors' ) ) )
+	log ( 'available cpu governors: %s' '' + ava )
+	G . cpugov = { }
+	G . cpugov . has1 = ava . contains ( 'performance' )
+	G . cpugov . has0 = ava . contains ( 'powersave' )
+	G . cpugov . nr = getCpuGovNum ( )
+	G . cpugov . lastChanged = 0
+	log ( '' + cpugov )
+}
+
+func getCpuGovNum {
+	cnt = 0
+	for FileObj ( '/sys/devices/system/cpu/cpufreq' ) . listFiles ( ) f {
+		if f . getName ( ) . startsWith ( 'policy' ) cnt += 1 end
+	}
+	return cnt
+}

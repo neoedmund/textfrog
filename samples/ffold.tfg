@@ -1,0 +1,28 @@
+#!/usr/bin/env textfrog
+# start a new firefox profile
+include ( 'util.tfg' )
+runnable main ( args ) {
+	tryBash ( '.' 'sudo ntpdate pool.ntp.org' )
+
+	bin = 'firefox'
+	profile = '/ram/ffclean'
+
+	// confirm firefox extract
+	// if ! FileObj ( bin ) . exists ( )
+	// 	checkBash ( '.' 'tfg unpack /opt/firefox.tar.zst' )
+	// else
+	// 	log ( 'firefox already extracted' )
+	// end
+	// confirm ( FileObj ( bin ) . exists ( ) 'firefox not extracted' )
+	// extract profile
+	if ! FileObj ( profile ) . exists ( )
+		-- checkBash ( '.' 'rm -fr ' + profile )
+		checkBash ( '.' 'tfg unpack /opt/ffclean.tar.zst -d /ram/ffclean' )
+	end
+	confirm ( FileObj ( profile ) . isDirectory ( ) 'firefox clean profile not extracted' )
+	// kill firefox
+	-- checkBash ( '.' 'tfg kill firefox' )
+	// start firefox with profile dir
+	execp_passout ( '.' bin '-profile' profile )
+}
+

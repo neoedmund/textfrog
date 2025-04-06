@@ -1,0 +1,25 @@
+#!/usr/bin/env textfrog
+runnable main args {
+	if args . size ( ) <= 0 log ( 'need some keywords to search exe in the PATH' ) return 0 end
+	ks = args . map ( -> x { return x . toLowerCase ( ) } )
+	ps = G . systemEnv . PATH . split ( ':' )
+	cnt = 0
+	ret = [ ]
+	for ps p {
+		if ! FileObj ( p ) . isDirectory ( ) log ( 'skip non-exist: %s' p ) continue end
+		// log ( '[d] search %s' p )
+		filewalk p fn 1 {
+			if contains ( fn ks ) ret . add ( fn ) cnt += 1 end
+		}
+	}
+	if cnt == 0 log ( '[%s] not found' '' + args )
+	else log ( 'found %,d: [\n%s\n]' cnt ret . join ( '\n' ) ) end
+}
+
+private function contains ( fn ks ) {
+	fn0 = fn . toLowerCase ( )
+	for ks k {
+		if ! ( fn0 . contains ( k ) ) return false end
+	}
+	return true
+}

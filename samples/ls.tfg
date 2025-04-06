@@ -1,0 +1,45 @@
+#!/usr/bin/env textfrog
+//ls with size
+runnable function main args {
+	dir = args [ 0 ]
+	fs = FileObj ( dir ) . listFiles ( )
+	cnt = 0
+	ret = [ ] . copy ( )
+	sortby = 0
+	if args . size ( ) > 1
+		if args [ 1 ] == '-n'
+			sortby = 1
+		end
+	end
+	total = 0
+	for fs f {
+		name = f . getName ( )
+		size = f . length ( )
+		total = total + size
+		ret . add ( array ( size name ) )
+	}
+	if sortby == 0 --by size
+		ret . sort ( -> a b {
+				x = a [ 0 ]
+				y = b [ 0 ]
+				if x == y return 0 end
+				if x > y return 1 end
+				return -1
+			} )
+	elseif sortby == 1 --by name
+		ret . sort ( -> a b {
+				return a . compareTo ( b )
+			} )
+	end
+	for ret r {
+		log ( '%s\t%s' widthNumber ( r [ 0 ] 15 ) r [ 1 ] )
+	}
+	log ( 'listed %,d files %,d bytes in %s' ret . size ( ) total FileObj ( dir ) . getAbsolutePath ( ) )
+}
+function widthNumber x w {
+	s = format ( "%,d" x )
+	space = w - s . length ( )
+	if space > 0 s = ' ' * space + s end
+	return s
+}
+

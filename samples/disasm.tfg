@@ -1,0 +1,42 @@
+#!/usr/bin/env textfrog
+// using libdis , this used as a lib
+include ( 'lib.tfg' )
+loadLib('disasm')
+//libDisasm ( )
+//func libDisasm { // WTF: after I done, I found libdisasm not support x64 asm. only has 32 bit
+//	--	G . includePath . add ( G . SCRIPT_DIR + "/.." )
+//	--	G . libpath . add ( G . SCRIPT_DIR + "/.." )
+//	libHeader ( "disasm" , [ "libdis.h" ] ,
+//		[ ] , [ ] lib ( "disasm" ) , [ ] )
+//	// test x86_op_t
+//	curr_inst = struct ( x86_insn_t )
+//	confirm ( curr_inst . size ( ) == 168
+//		format ( 'sizeof(x86_insn_t) should be 168 but got %d' curr_inst . size ( ) ) )
+//
+//	x86_init ( 0 0 0 )
+//}
+runnable test {
+	testcode = '81 7d fc 3a 30 00 00 90'
+	bs = getNativeBsHex ( testcode )
+	confirm ( bs . size ( ) == 8 'bug?' )
+	curr_inst = struct ( x86_insn_t )
+	size = x86_disasm ( bs bs . size ( ) 0 0 curr_inst )
+	outbufsize = 512
+	line = nativeByteArray ( outbufsize )
+	len = x86_format_insn ( curr_inst line outbufsize intel_syntax )
+	log ( 'asm:%d (%d) %s' size len nativeString ( line . addr ( ) len ) )
+}
+private func getNativeBsHex ( hex ) {
+	bs = newBaos ( )
+	ts = spacedTokens ( hex )
+	loop {
+		s = ts . ns ( )
+		if s == null break end
+		bs . writeByte ( toInt ( s 16 ) )
+	}
+	size = bs . size ( )
+	nb = nativeByteArray ( size )
+	bs . writeToBB ( nb . bb ( ) )
+	return nb
+}
+

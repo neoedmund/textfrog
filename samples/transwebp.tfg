@@ -1,0 +1,23 @@
+#!/usr/bin/env textfrog
+runnable function main ( args ) {
+	dir = args [ 0 ]
+	fs = FileObj ( dir ) . listFiles ( )
+	cnt = 0
+	for ( fs f ) {
+		name = f . getName ( )
+		if name . endsWith ( '.jpg' ) then
+			checkExec ( execp ( dir 'cwebp' name '-o' name [ 0 .. -4 ] + 'webp' ) )
+			cnt = cnt + 1
+		end
+	}
+	log ( 'trans %d files' cnt )
+}
+
+private function checkExec ( ret ) {
+	if ret [ 2 ] != 0 then
+		error ( "exec failed code %s %s" ret [ 2 ] '' + ret )
+	else
+		log ( 'ok:' + ret )
+	end
+}
+

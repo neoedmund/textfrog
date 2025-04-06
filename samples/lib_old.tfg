@@ -1,0 +1,322 @@
+#!/usr/bin/env textfrog
+G . libpath . addAll ( [ "." "/usr/local/lib" "/usr/lib" "/lib/x86_64-linux-gnu" ] )
+G . libpath . add ( G . systemEnv . neoebuild_base + '/.textfrog/lib' )
+runnable function gen ( ) {
+	//	loadStruct ( "SDL2.struct" )
+	--	libC ( )
+	libVulkan ( )
+	libSDL2 ( ) //SDL_vulkan.h
+	libzstd ( )
+	--	checkStructSize ( )
+	compiled = parseData ( "{VkMemoryHeap:16 VkMemoryType:8
+		VkPhysicalDeviceProperties:824 VkPhysicalDeviceLimits:504 VkPhysicalDeviceMemoryProperties:520
+		VkQueueFamilyProperties:24 VkDeviceQueueCreateInfo:40
+		VkPhysicalDeviceFeatures:220 VkDeviceCreateInfo:72
+		VkSwapchainCreateInfoKHR:104}" )
+	ok = 0
+	for ( compiled k v ) {
+		v0 = G [ "struct" ] [ k ] [ "size" ]
+		if v0 != v log ( "%s expected %s but got %s" k v v0 ) else ok = ok + 1 end
+	}
+	log ( "ok %d/%d" ok compiled . size ( ) )
+}
+function libzstd ( ) {
+	G [ "includePath" ] . add ( G [ "SCRIPT_DIR" ] )
+	libFuncs = lib ( "zstd" )
+	libHeader ( "zstd" , [ "zstd.h" ] , [ ZSTDLIB_API ZSTDLIB_STATIC_API ] , [ ] libFuncs , [ ] ) //
+}
+function libfreetype ( ) { // use clang -E make things easy
+	libFuncs = lib ( "freetype" )
+	libHeader ( "freetype" , [ "freetype_pp.h" ] , [ FT_EXPORT ] , [ ] libFuncs , [ ] ) //
+}
+func libmypng ( ) {
+	//	G [ "includePath" ] . add ( G [ "SCRIPT_DIR" ] )
+	libFuncs = lib ( "mypng" )
+	libHeader ( "mypng" , [ "mypng.h" ] , [ API ] , [ ] libFuncs , [ ] ) //
+}
+function libmath ( ) {
+	G [ "includePath" ] . add ( G [ "SCRIPT_DIR" ] )
+	libFuncs = lib ( "m" )
+	libHeader ( "m" , [ "math.h" ] , [ API ] , [ ] libFuncs , [ ] )
+}
+function libxxhash ( ) {
+	libFuncs = lib ( "xxhash" )
+	libHeader ( "xxhash" , [ "/usr/include/xxhash.h" ] , [ XXH_PUBLIC_API ] , [ ] libFuncs , [ ] ) //
+}
+function libmyvk3 ( ) {
+	G . includePath . add ( "/usr/local/include/" )
+	G . includePath . add ( G . systemEnv . neoebuild_base + "/lab0/GAME/vulkan/vk3/libmyvk3/" )
+	putConst ( G [ "consts" ] "VmaAllocHandle" "*" , [ ] )
+	libFuncs = lib ( "myvk3" )
+	--	libHeader ( "myvk3" , [ "vk_mem_alloc.h" ] , [ VMA_CALL_PRE ] , [ VMA_CALL_POST VMA_NOT_NULL VMA_NULLABLE VMA_NOT_NULL_NON_DISPATCHABLE VMA_NULLABLE_NON_DISPATCHABLE ] libFuncs getVKCust ( ) )
+	libHeader ( "myvk3b" , [ "myvk3.h" ] , [ EXPORT_API ] , [ ] libFuncs , [ ] )
+	moveLib ( "myvk3b" "myvk3" )
+}
+
+function libmyexec ( ) {
+	libHeader ( "myexec" , [ G . systemEnv . neoebuild_base + "/lab/lab0/linux/myexec/myexec.h" ] ,
+		[ extern DECLSPEC ] , [ ] , lib ( "myexec" ) , [ ] )
+}
+function libwebp ( ) {
+	putConst ( G [ "consts" ] "size_t" "long" , [ ] )
+	libFuncs = lib ( "webp" )
+	libHeader ( "webp" , [ "webp.h" ] , [ WEBP_EXTERN ] , [ ] libFuncs , [ ] )
+}
+
+function libSDL2 ( ) {
+	putConst ( G [ "consts" ] "size_t" "long" , [ ] )
+	G [ "includePath" ] . add ( "/usr/local/include/SDL2/" )
+	/* not this issue:	putConst ( G [ "consts" ] "size_t" "int" , [].copy() )
+fail because extern DECLSPEC void *SDLCALL SDL_memset(SDL_OUT_BYTECAP(len) void *dst, int c, size_t len);
+let it go.
+*/
+	libFuncs = lib ( "SDL2" )
+	libHeader ( "SDL2" , [ "SDL.h" "SDL_vulkan.h" ] , [ DECLSPEC ] , [ SDLCALL ] libFuncs , [ ] )
+	-- loadStruct ( "SDL2.struct" )
+	libHeader ( "SDL2b" , [ "SDL2b.h" ] , [ DECLSPEC ] , [ ] , libFuncs , [ ] )
+	moveLib ( "SDL2b" "SDL2" )
+}
+function libVulkan ( ) {
+	putConst ( G [ "consts" ] "size_t" "long" , [ ] )
+	--	log ( G . systemEnv )
+	if G . systemEnv [ "VULKAN_SDK" ] != null
+		G [ "includePath" ] . add ( G . systemEnv [ "VULKAN_SDK" ] + "/include/vulkan/" )
+		G . libpath . addAt ( 0 G . systemEnv [ "VULKAN_SDK" ] + '/lib' )
+	end
+	if G . isWindows
+		G . libpath . add ( 'C:/Windows/System32' )
+	end
+	libname = G . isWindows ? "vulkan-1" : "vulkan"
+	libFuncs = lib ( libname )
+	libHeader ( libname , [ "vulkan.h" ] , [ VKAPI_ATTR ] , [ VKAPI_CALL ] libFuncs getVKCust ( ) )
+}
+
+function getVKCust ( ) {
+	cust = [ ]
+	cust . add ( -> ( t ts cacheFunc cacheConst cacheStruct ) {
+			//	VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkImage)
+			//  VK_DEFINE_HANDLE(VkInstance)
+			if t . es ( "VK_DEFINE_NON_DISPATCHABLE_HANDLE" ) then
+				if ts . lastTokenCannotIgnoreIs ( "define" 0 ) return false end
+				if ts . peek2 ( ) . es ( "(" ) then
+					ts . confirmNext ( "(" )
+					t1 = ts . next2 ( )
+					ts . confirmNext ( ")" )
+					putConst ( G [ "consts" ] t1 . token "*" cacheConst )
+					return true
+				end
+			end
+			if t . es ( "VK_DEFINE_HANDLE" ) then
+				if ts . lastTokenCannotIgnoreIs ( "define" 0 ) return false end
+				if ts . peek2 ( ) . es ( "(" ) then
+					ts . confirmNext ( "(" )
+					t1 = ts . next2 ( )
+					ts . confirmNext ( ")" )
+					putConst ( G [ "consts" ] t1 . token "*" cacheConst )
+					return true
+				end
+			end
+			return false
+		} )
+	return cust
+}
+
+function libC ( ) {
+	G [ "includePath" ] . add ( G [ "SCRIPT_DIR" ] )
+	libFuncs = lib ('c' )
+	libHeader ( "c" , [ "some.h" ] , [ extern DECLSPEC ] , [ SDLCALL ] libFuncs , [ ] )
+	// add memory.h
+	libHeader ( "memory" , [ "memory.h" ] , [ API ] , [ ] , libFuncs , [ ] )
+	moveLib ( "memory" "c" )
+	// confirm ( struct ( user_fpregs_struct ) . size ( ) == 512 'bug' )
+}
+
+function checkStructSize ( ) { -- check if my struct size is same with compiler
+	ss = [ ]
+	ss . add ( `
+	int main ( ) {
+	int passed=0, failed=0;
+` )
+	for ( G [ "struct" ] name row ) {
+		size = row [ "size" ] . toInt ( )
+		ss . add ( format ( `if ( sizeof ( %s ) != %d ) {
+	printf ( "size VkApplicationInfo(%d)!=%%d\\n" , sizeof ( %s ) ) ;
+	passed++;
+	}else passed ++ ;` name size size name ) )
+	}
+	ss . add ( '	printf("passed=%d failed=%d\\n", passed, failed);}' )
+	save ( ss . join ( "\n" ) "out/checkstructsize.inc" )
+}
+function loadStruct ( fn ) {
+	data = parseData ( file ( findFileInSearchPath ( fn ) ) )
+	str = G [ "struct" ]
+	for ( data key value ) {
+		//		log("k=%s  v=%s"  key value )
+		if str [ key ] != null then
+			log ( "ignore duplicated struct '%s'" , key )
+			continue
+		end
+		a = ( str [ key ] = parseStruct ( value fn ) )
+		--	log ( a )
+	}
+}
+
+private function getMap ( name0 name ) {
+	if ( m = G [ name0 ] ) == null G [ name0 ] = ( m = { } ) end
+	if ( r = m [ name ] ) == null m [ name ] = ( r = { } ) end
+	return r
+}
+function lib ( name ) { -- just resolve .so
+	log ( "try to load lib '%s'" name )
+	libs = findlib ( name )
+	log ( "found %d %s, try load 1st one" libs . size ( ) "" + libs )
+	if libs . isEmpty ( ) error ( "cannot find lib: " + name ) end
+	G . resolvedLib [ name ] = FileObj ( libs [ 0 ] ) . getAbsolutePath ( )
+	libFuncs = loadLibFuncs ( libs [ 0 ] name )
+	G [ "libFuncs" ] . addAll ( libFuncs )
+	return libFuncs
+}
+private function getCacheDir ( ) {
+	return G . systemEnv . neoebuild_base + '/.textfrog/cache'
+}
+
+private function foundLibCache ( name headerFuncTypeMap ) {
+	cachedir = getCacheDir ( )
+	cachefile = cachedir + "/" + name
+
+	if FileObj ( cachefile ) . isFile ( ) then
+		m = parseData ( file ( cachefile ) )
+		log ( "load cached lib %s func=%,d const=%,d struct=%,d from %s"
+			name m [ "func" ] . size ( ) m [ "const" ] . size ( ) m [ "struct" ] . size ( ) cachefile )
+		headerFuncTypeMap . putAll ( m [ "func" ] )
+		G [ "consts" ] . putAll ( m [ "const" ] )
+		G [ "struct" ] . putAll ( m [ "struct" ] )
+		return m [ "func" ] . keySet ( )
+	else
+		return null
+	end
+}
+private function saveLibCache ( name cacheText ) {
+	cachedir = getCacheDir ( )
+	FileObj ( cachedir ) . mkdirs ( )
+	save ( cacheText . join ( "\n" ) cachedir + "/" + name )
+	log ( "saved lib cache %s into %s" name cachedir )
+}
+/*
+headerFuncMap {libName : { funcname : [ retTypeAndName params ] }} <-- for debug only? not put in cache
+headerFuncTypeMap {libName : { funcname : "shortentypes" }}
+consts {key:value}
+struct {name: [ [name   size(p)   gt(guessType) st(sizeof)   cnt(array)   ]]}
+*/
+function testCacheIsNew ( name includeFiles ) { -- auto update cache according to .h files
+	cachefile = getCacheDir ( ) + "/" + name
+	if ! FileObj ( cachefile ) . isFile ( ) return false end
+	t1 = FileObj ( cachefile ) . lastModified ( )
+	//log ( "[d] cache %s date %s" name formatDate ( 'yyyyMMdd HHmmss' t1 ) )
+	for includeFiles fn {
+		fn2 = findIncludeFile ( fn )
+		if fn2 == null log ( "[e]cannot find header file " + fn ) continue end
+		f2 = FileObj ( fn2 )
+		if ! f2 . isFile ( ) return false end
+		t2 = f2 . lastModified ( )
+		//log ( "[d] .h (%s) date %s" , fn2 formatDate ( 'yyyyMMdd HHmmss' t2 ) )
+		if t2 > t1 return false end
+	}
+	return true
+}
+function libHeader ( name includeFiles pre ignore libFuncs custParser ) {
+	--	headerFuncMap = getMap ( "headerFuncMap" name )
+	headerFuncTypeMap1 = getMap ( "headerFuncTypeMap" name )
+	chars = [ 0 ]
+	cacheText = [ ]
+	hdrFnNames = null
+	usecache = true
+	if usecache && testCacheIsNew ( name includeFiles ) then
+		hdrFnNames = foundLibCache ( name headerFuncTypeMap1 )
+	end
+	if hdrFnNames == null then
+		hdrFnNames = parseHeaders ( includeFiles pre ignore chars cacheText headerFuncTypeMap1 custParser )
+		saveLibCache ( name cacheText )
+	end
+	if true && libFuncs != null then
+		a = setSub ( libFuncs hdrFnNames )
+		b = setSub ( hdrFnNames libFuncs )
+		both = setSub ( libFuncs a )
+		--	log ( "lib-header=%d %s" a . size ( ) "" ) //+ a
+		--	log ( "header-lib=%d %s" b . size ( ) "" ) //+ b
+		--	log ( "both=%d %s" both . size ( ) "" ) // + both
+		--	log ( "parsed %,d chars" chars [ 0 ] )
+	end
+}
+
+function moveLib ( from to ) {
+	if ( m = G . libMap ) == null m = ( G . libMap = { } ) end
+	m . put ( from to )
+}
+G . checkLibFunctions = false
+private function loadLibFuncs ( name libname ) {
+	if ! G . checkLibFunctions return [ ] end
+	ret = exec ( "nm" "-D" name )
+	ss = ret [ 0 ] . split ( "\n" )
+	funcs = [ ]
+	for ( ss line ) {
+		if ! line . contains ( " T " ) continue end
+		p1 = line . indexOf ( " T " )
+		funcs . add ( line . substring ( p1 + 3 ) )
+	}
+	log ( "listed %d functions in %s(%s)" funcs . size ( ) libname name )
+	//log ( "{\n%s\n}" funcs . join ( "\n" ) )
+	return funcs
+}
+
+private function findlib ( name ) {
+	ret = [ ]
+	name1 = "/lib" + name + ".so"
+	if G . isWindows name1 = "\\" + name + ".dll" end
+	if G . isMac name1 = "/lib" + name + ".dylib" end
+	if name . equals ( "c" )
+		if G . isWindows
+			ret . add ( 'C:/Windows/System32/msvcrt.dll' )
+			return ret
+		elseif G.isMac
+			name1 = "/libsystem_kernel.dylib"
+		else
+			name1 = "/libc.so.6"
+		end
+	elseif name . equals ( "m" )
+		name1 = "/libm.so.6"
+	end
+	for ( G . libpath path ) {
+		findlib2 ( ret path name1 )
+	}
+	if ret . isEmpty ( ) && G . isWindows
+		name1 = "\\lib" + name + ".dll"
+		log ( 'also find ' + name1 )
+		for ( G . libpath path ) {
+			findlib2 ( ret path name1 )
+		}
+	end
+	return ret
+}
+private function findlib2 ( ret path name ) {
+	filewalk ( path fn 4 ) {
+		-- log ( "search path %s for %s" fn name )
+		if fn . contains ( 'i386' ) continue end -- i386 is only for steam client
+		if fn . endsWith ( name ) ret . add ( fn ) end
+		p1 = fn . indexOf ( name )
+		if p1 >= 0
+			remain = fn [ p1 + name . length ( ) .. ]
+			match = true
+			c0 = toChar ( '0' )
+			c9 = toChar ( '9' )
+			cdot = toChar ( '.' )
+			for remain c { // remain is only contains digit and dot
+				if c == cdot || c >= c0 && c <= c9
+				else match = false break end
+			}
+			if match ret . add ( fn ) end
+		end
+	}
+}
+
+

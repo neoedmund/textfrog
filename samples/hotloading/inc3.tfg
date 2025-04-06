@@ -1,0 +1,9 @@
+func  inc3 ( ) {
+	log ( 'inc3 2' )
+	return 0
+}
+
+func  inc3b ( ) {
+	log ( 'inc3b 2' )
+	return 0
+}

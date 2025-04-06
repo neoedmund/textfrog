@@ -1,0 +1,19 @@
+#!/usr/bin/env textfrog
+/*
+tfg fib
+github/drujensen/fib
+	gcc -O3 -o fib.run fib.c
+		3.5 sec
+	java -cp . Fib
+		9 sec
+	tfg
+		2,930 sec
+*/
+
+runnable main {
+	log ( '%,d' fib ( 47 ) )
+}
+func fib ( n ) {
+	if n <= 1 return n end
+	return fib ( n -1 ) + fib ( n -2 )
+}

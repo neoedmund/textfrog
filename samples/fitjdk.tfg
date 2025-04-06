@@ -1,0 +1,17 @@
+#!/usr/bin/env textfrog
+/* fitness for new built jdk
+not tested for all cases
+*/
+include ( 'util.tfg' )
+runnable main {
+	dir = '/opt/oss/jdk21u-jdk-21.0.4-5/build/linux-x86_64-server-release/images/jdk/'
+	tryBash ( dir format ( 'rm -fr %s/legal' dir ) )
+	tryBash ( dir format ( 'rm -fr %s/demo' dir ) )
+	tryBash ( dir format ( 'rm -fr %s/man' dir ) )
+	tryBash ( dir format ( 'rm -fr %s/jmod' dir ) )
+	tryBash ( dir format ( 'rm %s/lib/src.zip' dir ) )
+	filewalk dir fn 10 {
+		if fn . endsWith ( '.debuginfo' ) FileObj ( fn ) . delete ( ) end
+	}
+	tryBash ( dir format ( 'du -s %s' dir ) )
+}

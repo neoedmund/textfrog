@@ -1,0 +1,160 @@
+#!/usr/bin/env textfrog
+/*
+tfg zstdres test
+*/
+
+include ( "lib.tfg" )
+loadLib ( 'zstd' )
+G . butOutSize = -1
+runnable init ( ) { //use embedded
+}
+runnable test ( ) {
+	loadZstdResource ( '/data/data/text/bible3langText.tar.zst' ) 
+}
+func zstdOpen ( fn ) {
+	fin = MapFile ( fn )
+	buffInSize = ZSTD_DStreamInSize ( )
+	buffIn = nativeByteArray ( buffInSize )
+	buffOutSize = fin . size ( ) // ZSTD_DStreamOutSize ( )
+	buffOut = nativeByteArray ( buffOutSize )
+	dctx = ZSTD_createDCtx ( )
+	confirm ( dctx != 0 "ZSTD_createDCtx() failed!" )
+	toRead = buffInSize
+	read = fin . size ( )
+	lastRet = 0
+	isEmpty = 1
+	input = struct ( ZSTD_inBuffer )
+	input . src = fin . addr ( )
+	input . size = fin . size ( )
+	input . pos = 0
+	output = struct ( ZSTD_outBuffer )
+	output . dst = buffOut . addr ( )
+	output . size = buffOutSize
+	output . pos = 0
+	r = { }
+	r . input = input
+	r . output = output
+	r . dctx = dctx
+	r . bb = buffOut . bb ( )
+	r . fin = fin
+	return r
+}
+func zstdNextBuf ( r ) {
+	output = r . output
+	input = r . input
+	dctx = r . dctx
+	output . pos = 0
+	r . size = 0
+	ret = ZSTD_decompressStream ( dctx output input )
+	if ret == 0
+		if input . pos >= input . size
+			--	log ( 'decompressed %,d to %,d(buf %,d)' r . fin . size ( ) output . pos output . size )
+			r . finished = true
+			r . size = output . pos
+			ZSTD_freeDCtx ( dctx )
+			return r
+		else
+			if input . pos < input . size && output . pos < output . size
+				--	log ( 'in(%,d/%,d) out(%,d/%,d)' input . pos input . size output . pos output . size )
+				r . size = output . pos
+				return r
+			else
+				error ( 'unexpected in(%,d/%,d) out(%,d/%,d)' input . pos input . size output . pos output . size )
+			end
+		end
+	else
+		if output . pos == output . size
+			--	log ( 'in2(%,d/%,d) out(%,d/%,d)' input . pos input . size output . pos output . size )
+			r . size = output . pos
+			return r
+		else
+			if input . pos >= input . size
+				--		log ( 'decompressed2 %,d to %,d(buf %,d)' r . fin . size ( ) output . pos output . size )
+				ZSTD_freeDCtx ( dctx )
+				r . finished = true
+				r . size = output . pos
+				return r
+			end
+			error ( 'unexpected(case 2) in(%,d/%,d) out(%,d/%,d)' input . pos input . size output . pos output . size )
+		end
+	end
+	return r
+}
+func loadZstdResource ( fn ) {
+	// load a .zstd.tar into memory map (cannot work with big buf > 2GB in java)
+	/*
+1. load file to memory
+2. unpack with zstd(libzstd)
+3. read with tar(java) to java map
+*/
+	buffOut = loadZstdResource0 ( fn )
+	return Java ( 'neoe.tar.Tar2Map' ) . getStringMap ( buffOut . bb ( ) buffOut . bb ( ) . limit ( ) )
+}
+func filezst ( fn ) { -- read zst file into text utf8
+	buffOut = loadZstdResource0 ( fn )
+	return bb2string ( buffOut . bb ( ) buffOut . bb ( ) . limit ( ) )
+}
+
+func loadZstdResource0 ( fn ) {
+	fin = MapFile ( fn )
+	buffInSize = ZSTD_DStreamInSize ( )
+	buffIn = nativeByteArray ( buffInSize )
+	buffOutSize = fin . size ( ) * 3 // ZSTD_DStreamOutSize ( )
+	buffOut = 0
+	if G . butOutSize >= buffOutSize
+		buffOutSize = G . butOutSize
+		buffOut = G . bufOut
+	else
+		buffOut = nativeByteArray ( buffOutSize )
+		G . bufOut = buffOut
+		G . butOutSize = buffOutSize
+	end
+	dctx = ZSTD_createDCtx ( )
+	confirm ( dctx != 0 "ZSTD_createDCtx() failed!" )
+	toRead = buffInSize
+	read = fin . size ( )
+	lastRet = 0
+	isEmpty = 1
+	input = struct ( ZSTD_inBuffer )
+	input . src = fin . addr ( )
+	input . size = fin . size ( )
+	input . pos = 0
+	output = struct ( ZSTD_outBuffer )
+	output . dst = buffOut . addr ( )
+	output . size = buffOutSize
+	output . pos = 0
+	loop {
+		ret = ZSTD_decompressStream ( dctx output input )
+		if ret == 0
+			if input . pos >= input . size
+				log ( 'decompressed %,d to %,d(buf %,d)' fin . size ( ) output . pos output . size )
+				break
+			else
+				if input . pos < input . size && output . pos < output . size
+					log ( 'in(%,d/%,d) out(%,d/%,d)' input . pos input . size output . pos output . size )
+					continue
+				else
+					error ( 'unexpected in(%,d/%,d) out(%,d/%,d)' input . pos input . size output . pos output . size )
+				end
+			end
+		else
+			if output . pos == output . size
+				size2 = output . size * 2
+				log ( 'enlarge output to %,d' size2 )
+				buffOut2 = nativeByteArray ( size2 )
+				bbcopy ( buffOut . bb ( ) buffOut2 . bb ( ) )
+				output . dst = buffOut2 . addr ( )
+				output . size = size2
+				buffOut = buffOut2
+				G . bufOut = buffOut
+				G . butOutSize = size2
+				continue
+			else
+				error ( 'unexpected(case 2) in(%,d/%,d) out(%,d/%,d)' input . pos input . size output . pos output . size )
+			end
+		end
+	}
+	ZSTD_freeDCtx ( dctx )
+	buffOut . bb ( ) . limit ( output . pos )
+	return buffOut
+}

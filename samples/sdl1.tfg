@@ -1,0 +1,40 @@
+#!/usr/bin/env textfrog
+include ( "lib.tfg" )
+libSDL2()
+
+loadStruct ( "SDL2.struct" )
+
+runnable function main ( args ) {
+	if SDL_Init ( -1 ) != 0 then
+		log ( "error initializing SDL: %s" nativeString ( SDL_GetError ( ) ) )
+		return null
+	end
+	SDL_WINDOWPOS_CENTERED = 0x2FFF0000
+	win = SDL_CreateWindow ( "GAME" SDL_WINDOWPOS_CENTERED SDL_WINDOWPOS_CENTERED 1000 500 0 )
+	close = 0
+
+	event = struct ( SDL_Event )
+	ke = struct ( SDL_KeyboardEvent event )
+
+	// Events management
+	loop ( ) {
+		if 1 == SDL_PollEvent ( event ) then
+			log ( "event.type=0x%x" event . type )
+			if event . type == 0x100 /*SDL_QUIT*/ then
+				close = 1
+				break
+			end
+			if ( event . type == 0x300 /* SDL_KEYDOWN */ ) then
+				kv = ke . keysym . sym
+				log ( "pressed %x" kv )
+				if 0x1b /* SDLK_ESCAPE*/ == kv then
+					close = 1
+					break
+				end
+			end
+		end
+		sleep ( 30 )
+	}
+	SDL_Quit ( )
+	return 0
+}

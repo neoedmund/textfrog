@@ -1,0 +1,57 @@
+#!/usr/bin/env textfrog
+# 
+runnable test {
+	ll = newLoopList ( 4 )
+	--	log ( ll )
+	ll . add ( 1 )
+	dump ( ll )
+	ll . add ( 1 ) . add ( 2 )
+	dump ( ll )
+	ll . add ( 1 ) . add ( 2 ) . add ( 3 )
+	dump ( ll )
+	ll . add ( 1 ) . add ( 2 ) . add ( 3 ) . add ( 4 )
+	dump ( ll )
+	ll . add ( 1 ) . add ( 2 ) . add ( 3 ) . add ( 4 ) . add ( 5 )
+	dump ( ll )
+}
+private dump ( ll ) {
+	log ( 'dump...' )
+	for {
+		k = ll . next ( )
+		log ( 'v=' + k )
+		if k == null break end
+	}
+}
+function newLoopList ( size ) {
+	if size <= 0 error ( 'size(=%d) must >0' size ) end
+	o = { }
+	o . data = [ 0 ] * size
+	o . size = size
+	o . p = 0
+	o . q = 0
+	o . hasNext = -> {
+		return q != p
+	}
+	o . next = -> {
+		--		log ( "p=%d q=%d" p q )
+		if q == p return null end
+		ret = data [ p ]
+		p = p + 1 if p >= size p = 0 end
+		return ret
+	}
+	o . add = -> x {
+		q2 = q + 1 if q2 >= size q2 = 0 end
+		--	log ( "x=%s q2=%d" x q2 )
+		if q2 == p -- full
+			p = p + 1 if p >= size p = 0 end
+			data [ q ] = x
+			q = q2
+		else
+			data [ q ] = x
+			q = q2
+		end
+		--		log ( "after p=%d q=%d" p q )
+		return this
+	}
+	return o
+}

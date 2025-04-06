@@ -1,0 +1,6 @@
+include ( 'inc3.tfg' )
+func include1 ( ) {
+	log ( 'include 1' )
+	inc3b ( )
+	return 0
+}

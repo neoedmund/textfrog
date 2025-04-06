@@ -1,0 +1,4 @@
+function inline1 ( ) {
+	log ( 'inline 2' )
+	return 0
+}

@@ -1,0 +1,58 @@
+#!/usr/bin/env textfrog
+/* neoe make for
+ * The Computer Language Benchmarks Game
+ * https://salsa.debian.org/benchmarksgame-team/benchmarksgame/
+
+java -cp . binarytrees 18
+Exit(0) in about 251 ms
+python3 binarytrees.python3 18
+Exit(0) in about 1,275 ms
+textfrog binarytrees.tfg 18
+Exit(0) in about 40,130 ms
+
+*/
+MIN_DEPTH = 4
+runnable main args {
+	n = 0
+	if args . size ( ) > 0 n = toInt ( args [ 0 ] ) end
+	maxDepth = n
+	if n < ( MIN_DEPTH + 2 ) maxDepth = MIN_DEPTH + 2 end
+	stretchDepth = maxDepth + 1
+	log ( "stretch tree of depth " + stretchDepth + "\t check: "
+		+ itemCheck ( bottomUpTree ( stretchDepth ) ) )
+	longLivedTree = bottomUpTree ( maxDepth )
+	results = [ 0 ] * ( ( maxDepth - MIN_DEPTH ) / 2 + 1 )
+	forMT ( ( maxDepth - MIN_DEPTH ) / 2 + 1 j ) {
+		depth = MIN_DEPTH + j * 2
+		check = 0
+
+		iterations = 1 << ( maxDepth - depth + MIN_DEPTH )
+		for iterations i {
+			treeNode1 = bottomUpTree ( depth )
+			check = check + itemCheck ( treeNode1 )
+		}
+		results [ ( depth - MIN_DEPTH ) / 2 ] =
+		iterations + "\t trees of depth " + depth + "\t check: " + check
+	}
+	log ( results . join ( "\n" ) )
+	log ( "long lived tree of depth " + maxDepth +
+		"\t check: " + itemCheck ( longLivedTree ) )
+}
+function bottomUpTree ( depth ) {
+	if ( 0 < depth )
+		return newTreeNode2 ( bottomUpTree ( depth - 1 ) bottomUpTree ( depth - 1 ) )
+	end
+	return { }
+}
+function newTreeNode2 ( left right ) {
+	ret = { }
+	ret . left = left
+	ret . right = right
+	return ret
+}
+function itemCheck ( n ) {
+	if null == n . left
+		return 1
+	end
+	return 1 + itemCheck ( n . left ) + itemCheck ( n . right )
+}

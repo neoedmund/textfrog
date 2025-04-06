@@ -1,0 +1,74 @@
+#!/usr/bin/env textfrog
+// my auto grub conf
+include ( 'util.tfg' )
+include ( 'mntinfo.tfg' )
+runnable main {
+	rs = mntinfo ( )
+	grubconf ( rs )
+}
+func grubconf ( rs ) {
+	G . gconf = parseData ( file ( G . systemEnv . tfg_base + '/grubtemplate.conf' ) )
+	efi = [ ]
+	linux = [ ]
+	G . gcnt = 0
+	for rs row {
+		//	log('row=%s' ''+row)
+		// #0 dev	 1 mountpoint	 2 fs	 3 size	 4 usage	 5 uuid	 6 label	
+		// /dev/nvme0n1p1	/media/nvme0n1p1	vfat	1,021MB	2%(+ 1001 MB)	D3AD-4544	ESP	
+		if '/' == row [ 1 ] continue end
+		if row [ 2 ] . contains ( 'vfat' )
+			if FileObj ( row [ 1 ] + '/efi' ) . exists ( ) || FileObj ( row [ 1 ] + '/EFI' ) . exists ( )
+				addEfiFs ( efi row )
+			end
+		elseif row [ 2 ] . contains ( 'ext' )
+			vers = [ ]
+			findLinux ( row [ 1 ] , [ ] , row [ 0 ] row [ 5 ] vers )
+			log ( 'find linux in [%s] vers=%s' row [ 1 ] '' + vers )
+			addLinux ( linux row vers )
+		end
+	}
+	sb = [ ]
+	sb . add ( template ( gconf . sub { } . put ( 'cnt' gcnt ) ) )
+	i = 0
+	for linux item {
+		//	log('[d]item=%s' ''+item)
+		i += 1
+		sb . add ( format ( item i ) )
+	}
+	for efi item {
+		i += 1
+		sb . add ( format ( item i ) )
+	}
+	log ( 'linux %d, efi %d' linux . size ( ) efi . size ( ) )
+	sb . add ( gconf . subend )
+	v = sb . join ( '\n' )
+	save ( v 'grubconf.log' )
+	log ( v )
+}
+func addLinux ( sb row vers ) {
+	m = { }
+	m . DEV = row [ 0 ] [ 5 .. ]
+	m . UUID = row [ 5 ]
+	m . linux_param = gconf . linux_param
+	vers . sort ( ) . reverse ( )
+	for vers ver {
+		log ( 'add ver:%s' ver )
+		m . VER = ver
+		G . gcnt += 1
+		sb . add ( template ( gconf . linux m ) )
+	}
+}
+func addEfiFs ( sb row ) {
+	m = { }
+	m . DEV = row [ 0 ] [ 5 .. ]
+	m . UUID = row [ 5 ]
+	pl = row [ 1 ] . length ( )
+	if row [ 1 ] . endsWith ( '/' ) pl -= 1 end
+	filewalk row [ 1 ] fn 5 {
+		if fn . endsWith ( '.efi' )
+			m . EFI_PATH = fn [ pl .. ]
+			G . gcnt += 1
+			sb . add ( template ( gconf . efi m ) )
+		end
+	}
+}

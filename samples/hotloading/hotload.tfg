@@ -1,0 +1,24 @@
+#!/usr/bin/env textfrog
+/*
+kill.tfg hotload
+tfg hotload
+*/
+inline ( 'inline1.tfg' )
+include ( 'include1.tfg' )
+func func1 {
+	log ( 'func1' )
+	return 0
+}
+runnable test {
+	log ( 'start' )
+	loop {
+		if func1 ( ) == 1 break end
+		if inc3b ( ) == 1 break end
+		if inline1 ( ) == 1 break end
+		if include1 ( ) == 1 break end
+		if inc3 ( ) == 1 break end
+		sleep ( 2000 )
+	}
+	log ( 'finished' )
+}
+

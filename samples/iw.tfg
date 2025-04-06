@@ -1,0 +1,27 @@
+#!/usr/bin/env textfrog
+runnable function main ( args ) {
+	for ( ) {
+		log (
+			iwconfig ( )
+			+ ps_hostapd ( )
+		)
+		sleep ( 1000 )
+	}
+}
+function ps_hostapd ( ) {
+	ret = exec ( [ ps '-ef' ] )
+	ss = ret [ 0 ] . split ( '\n' )
+	for ( ss s ) {
+		if s . contains ( 'hostapd' ) then return s end
+	}
+	return "[no ps]"
+}
+function iwconfig ( ) {
+	ret = exec ( 'iwconfig' )
+	if ret [ 2 ] != 0 then return ( 'error=' + ret ) else
+		f = finder ( ret [ 0 ] )
+		f . find ( 'Mode:' )
+		s = f . readUntil ( 'Tx-Power' )
+		return ( s )
+	end
+}

@@ -1,0 +1,23 @@
+
+function libC ( ) {
+	loadLib ( 'c' )
+}
+
+func loadLibXXX ( name ) {
+	headerFuncTypeMap = getMap ( "headerFuncTypeMap" name )
+	cachefile = G . systemEnv . neoebuild_base + '/.textfrog/cache/' + name
+
+	if FileObj ( cachefile ) . isFile ( ) then
+		m = parseData ( file ( cachefile ) )
+		log ( "load cached lib %s func=%,d const=%,d struct=%,d from %s"
+			name m [ "func" ] . size ( ) m [ "const" ] . size ( ) m [ "struct" ] . size ( ) cachefile )
+		headerFuncTypeMap . putAll ( m [ "func" ] )
+		G [ "consts" ] . putAll ( m [ "const" ] )
+		G [ "struct" ] . putAll ( m [ "struct" ] )
+	end
+}
+private getMap ( name0 name ) {
+	if ( m = G [ name0 ] ) == null G [ name0 ] = ( m = { } ) end
+	if ( r = m [ name ] ) == null m [ name ] = ( r = { } ) end
+	return r
+}

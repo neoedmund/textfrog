@@ -1,0 +1,13 @@
+#!/usr/bin/env textfrog
+// add .jar in dir for using java -cp 
+runnable main args {
+	dir = args [ 0 ]
+	len = FileObj ( dir ) . getAbsolutePath ( ) . length ( )
+	ss = [ ]
+	filewalk args [ 0 ] fn 4 {
+		if fn . endsWith ( '.jar' )
+			ss . add ( fn [ len + 1 .. ] )
+		end
+	}
+	log ( ss . join ( ':' ) )
+}
