@@ -5,6 +5,9 @@ Textfrog is a lovely? succinct? powerful? addictive? (domain?) (script?) (interp
 
 告诉你一门语言textfrog，他接合Java和C的运行时，也就是说写代码的时候不用在乎是java还是C的方法还是变量。
 
+
+由于不全的文档，随意的命名，和相关实现的未公开，目前的定位为"个人化工具"。
+
 ## if else
 if a==b do1() 
 elseif do3()
