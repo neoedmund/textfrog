@@ -13,6 +13,9 @@ if a==b do1()
 elseif do3()
 else do2() end
 
+注意: 错误的语法: `if xxx { yyy }` (绝对不要用类似C的`{}`，而应该用类似lua的if语法)
+
+
 ## loop
 `loop` can alias as `for`
 ### on number
