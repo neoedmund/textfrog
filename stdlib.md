@@ -3,11 +3,11 @@
 > 本文档 generate assistant-by-AI: `Grok Build` ver `grok-0.2.11` 
 > textfrog 是一门结合 Java/C 运行时的简洁脚本语言，stdlib 提供了“电池包含”的丰富能力，尤其擅长 FFI（Java/C 互操作）、系统脚本、文本处理和个人工具开发。
 
-**调用示例**（类似 C/Java 语法，无需分号）：
+**调用示例**（类似 C/Java 语法，无需分号和逗号）：
 ```tfg
 s = file("a.txt")
 save("hello" "/tmp/x.txt")
-loop 10 i { print(i) }
+loop 10 i { log(i) }
 ```
 
 ---
