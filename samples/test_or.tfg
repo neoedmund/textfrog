@@ -1,0 +1,12 @@
+#!/usr/bin/env textfrog
+/*
+tfg test_or.tfg
+*/
+runnable main {
+	a = null
+	b = "it's B"
+	log ( '[%s] [%s] :%s' a b a or b )
+	a = "it's A"
+	log ( '[%s] [%s] :%s' a b a or b )
+}
+

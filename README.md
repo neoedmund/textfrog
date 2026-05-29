@@ -34,4 +34,5 @@ switch a {
 
 samples: in `samples/` dir
 
+stdlib: stdlib.md
 
